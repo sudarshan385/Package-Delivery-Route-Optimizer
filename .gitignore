@@ -1,0 +1,67 @@
+# Java build artifacts
+target/
+**/target/
+*.class
+*.jar
+*.war
+*.log
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE & OS files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*~
+.DS_Store
+Thumbs.db
+brain/
+project-audit/
+.api_description
+-remote*
+
+# Temporary test & scratch scripts
+backend/CreateDb.java
+backend/*.py
+*.py[cod]
+__pycache__/
+
+# Frontend dependencies and outputs
+frontend/node_modules/
+frontend/dist/
+node_modules/
+**/node_modules/
+**/dist/
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Temporary Vite configuration & build files
+frontend/*.timestamp-*.mjs
+frontend/vite.config.js.timestamp-*
+**/vite.config.js.timestamp-*
+frontend/package-lock.json.backup_*
+
+# Generated compiler artifacts and backups
+/META-INF/
+/org/
+/.backups_master_upgrade/
+/backend/classpath.txt
+backend/classpath.txt
+*.dump
+*.bak
+
+# Large research datasets (exceeds GitHub 100MB limit)
+research-data/*.json

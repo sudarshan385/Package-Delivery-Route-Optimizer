@@ -1,0 +1,41 @@
+{
+  "seed" : 42,
+  "dataset" : {
+    "totalRoutes" : 20,
+    "trainingRoutes" : 14,
+    "validationRoutes" : 3,
+    "testRoutes" : 3,
+    "totalStops" : 2737,
+    "totalPackages" : 2737
+  },
+  "configuration" : {
+    "trainingEpisodes" : 2,
+    "maxSteps" : 10,
+    "learningRate" : 0.001,
+    "discountFactor" : 0.99,
+    "epsilonStart" : 1.0,
+    "epsilonMinimum" : 0.01,
+    "epsilonDecay" : 0.995,
+    "batchSize" : 32,
+    "minimumReplaySize" : 10,
+    "targetUpdateInterval" : 10
+  },
+  "training" : {
+    "episodes" : 2,
+    "updates" : 8419,
+    "finalEpsilon" : 0.01,
+    "averageReward" : 0.0,
+    "bestReward" : 0.0,
+    "averageEpisodeSteps" : 10.0
+  },
+  "test" : {
+    "routes" : 3,
+    "cmr" : 0.008407993002758527,
+    "ed" : 0.008407993002758555,
+    "averageReward" : 0.8407993002758541
+  },
+  "dijkstra" : {
+    "available" : false,
+    "reason" : "The Amazon Last Mile dataset used for this experiment does not provide an authoritative road-network graph or road-travel-time weights required for a legitimate Dijkstra comparison."
+  }
+}

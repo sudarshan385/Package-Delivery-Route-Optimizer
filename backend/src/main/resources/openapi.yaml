@@ -1,0 +1,524 @@
+openapi: 3.0.3
+info:
+  title: Package Delivery Route Optimizer API
+  description: Authoritative REST API specification for the Package Delivery Route Optimizer system.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local Spring Boot Backend Server
+  - url: http://localhost:5173
+    description: Vite Development Proxy
+
+paths:
+  /api/auth/setup/status:
+    get:
+      summary: Check initial admin setup status
+      responses:
+        '200':
+          description: Setup status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupStatusResponse'
+
+  /api/auth/setup:
+    post:
+      summary: Bootstrap first system administrator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupRequest'
+      responses:
+        '201':
+          description: Initial administrator created
+        '409':
+          description: Administrator already configured
+
+  /api/auth/login:
+    post:
+      summary: User authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated successfully, JWT returned
+        '401':
+          description: Invalid username or password
+
+  /api/dashboard:
+    get:
+      summary: Retrieve operational dashboard metrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          description: Unauthorized
+
+  /api/locations:
+    get:
+      summary: List locations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated locations
+    post:
+      summary: Create location
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationRequest'
+      responses:
+        '201':
+          description: Location created
+
+  /api/edges:
+    get:
+      summary: List directed road edges
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated road edges
+    post:
+      summary: Create directed road edge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationEdgeRequest'
+      responses:
+        '201':
+          description: Edge created
+
+  /api/edges/sync:
+    post:
+      summary: Sync and import real road edge from OSRM (ADMIN only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: destinationId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: bidirectional
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Synced directed road edges
+
+  /api/drivers:
+    get:
+      summary: List drivers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated drivers
+    post:
+      summary: Create driver profile
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Driver created
+
+  /api/vehicles:
+    get:
+      summary: List delivery vehicles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated vehicles
+    post:
+      summary: Create vehicle
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Vehicle created
+
+  /api/packages:
+    get:
+      summary: List packages
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paginated packages
+    post:
+      summary: Create package
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Package created
+
+  /api/deliveries:
+    get:
+      summary: List deliveries
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of deliveries
+    post:
+      summary: Create delivery
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Delivery created
+
+  /api/deliveries/{id}/assign:
+    post:
+      summary: Assign driver and vehicle to delivery
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Delivery assigned
+
+  /api/deliveries/{id}/status:
+    post:
+      summary: Transition delivery status (POST)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status updated
+    patch:
+      summary: Transition delivery status (PATCH)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status updated
+
+  /api/deliveries/unassigned:
+    get:
+      summary: List unassigned deliveries (ADMIN only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: hubId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Unassigned deliveries
+
+  /api/deliveries/batch-assign:
+    post:
+      summary: Batch assign deliveries to a driver and vehicle for an optimized route (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Batch assignment successful
+        '400':
+          description: Invalid assignment parameters
+        '409':
+          description: Resource conflict (e.g. driver/vehicle unavailable)
+
+  /api/deliveries/manifest/driver:
+    get:
+      summary: Get active route manifest for authenticated driver
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active tour manifest
+        '404':
+          description: No active tour found
+
+  /api/deliveries/manifest/route/{routeId}:
+    get:
+      summary: Get manifest for a specific route (ADMIN or DRIVER)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Route manifest
+
+  /api/deliveries/{id}/routes/current:
+    get:
+      summary: Get current active route for a delivery (ADMIN, DRIVER, or delivery customer USER)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Current route details
+        '403':
+          description: Forbidden (not route owner or assigned driver)
+        '404':
+          description: Delivery or route not found
+
+  /api/optimization:
+    post:
+      summary: Compute shortest path route via Dijkstra's algorithm (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Route optimized
+
+  /api/optimization/multi-stop:
+    post:
+      summary: Compute multi-stop TSP/VRP tour optimization (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Multi-stop route optimized
+        '400':
+          description: Validation error
+
+  /api/experiments/ddqn/latest:
+    get:
+      summary: Get latest DDQN research model benchmark results (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Benchmark evaluation results
+
+  /api/experiments/ddqn/replan:
+    post:
+      summary: Simulate dynamic replanning with isolated DDQN research model (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Simulation replan result
+
+  /api/analytics:
+    get:
+      summary: Aggregate business analytics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Business analytics
+
+  /api/reports/deliveries/csv:
+    get:
+      summary: Export deliveries to CSV
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/reports/routes/csv:
+    get:
+      summary: Export routes to CSV
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/users:
+    get:
+      summary: List users (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Users list
+    post:
+      summary: Create user (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: User created
+
+  /api/users/profile:
+    get:
+      summary: Get current authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+
+  /api/users/{id}/verify:
+    put:
+      summary: Verify user account (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User verified
+
+  /api/users/{id}/unverify:
+    put:
+      summary: Unverify user account (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User unverified
+
+  /api/users/{id}/block:
+    put:
+      summary: Block user account (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User blocked
+
+  /api/users/{id}/unblock:
+    put:
+      summary: Unblock user account (ADMIN only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User unblocked
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SetupStatusResponse:
+      type: object
+      properties:
+        setupRequired:
+          type: boolean
+        message:
+          type: string
+
+    SetupRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        fullName:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    LocationRequest:
+      type: object
+      required: [name, latitude, longitude]
+      properties:
+        name:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        address:
+          type: string
+        locationType:
+          type: string
+
+    LocationEdgeRequest:
+      type: object
+      required: [sourceLocationId, destinationLocationId, distance]
+      properties:
+        sourceLocationId:
+          type: integer
+        destinationLocationId:
+          type: integer
+        distance:
+          type: number
+        estimatedTime:
+          type: number
+        averageTimeMinutes:
+          type: number
+
+    DashboardResponse:
+      type: object
+      properties:
+        totalPackages:
+          type: integer
+        totalDeliveries:
+          type: integer
+        completedDeliveries:
+          type: integer
+        availableDrivers:
+          type: integer
+        availableVehicles:
+          type: integer
+        totalRoutes:
+          type: integer
+        totalRouteDistance:
+          type: number
