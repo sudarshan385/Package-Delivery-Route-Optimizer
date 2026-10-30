@@ -5,7 +5,6 @@ import com.routeoptimizer.research.ideeproute.domain.BehaviorRepresentation;
 import com.routeoptimizer.research.ideeproute.domain.IDeepRouteInput;
 import com.routeoptimizer.research.state.domain.RouteAction;
 import com.routeoptimizer.research.state.domain.RouteDecisionState;
-import com.routeoptimizer.research.state.domain.ValidActionMask;
 import com.routeoptimizer.research.state.service.StateRepresentationService;
 import com.routeoptimizer.research.tsmtw.domain.CandidateRoute;
 import com.routeoptimizer.research.tsmtw.domain.TSMTWTask;

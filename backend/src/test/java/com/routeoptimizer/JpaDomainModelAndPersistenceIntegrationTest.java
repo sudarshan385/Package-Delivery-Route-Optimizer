@@ -16,7 +16,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -330,7 +329,7 @@ class JpaDomainModelAndPersistenceIntegrationTest {
         User admin = userRepository.save(User.builder()
                 .username("hist_admin").email("hist@admin.com").password("pass").role(Role.ADMIN).build());
 
-        DeliveryStatusHistory hist1 = deliveryStatusHistoryRepository.save(DeliveryStatusHistory.builder()
+        deliveryStatusHistoryRepository.save(DeliveryStatusHistory.builder()
                 .delivery(delivery)
                 .previousStatus(DeliveryStatus.CREATED)
                 .newStatus(DeliveryStatus.ASSIGNED)
@@ -421,9 +420,9 @@ class JpaDomainModelAndPersistenceIntegrationTest {
         Delivery delivery = deliveryRepository.save(Delivery.builder()
                 .pkg(pkg).sourceLocation(loc1).destinationLocation(loc2).build());
 
-        Route v1 = routeRepository.save(Route.builder()
+        routeRepository.save(Route.builder()
                 .delivery(delivery).sourceLocation(loc1).destinationLocation(loc2).totalDistance(10.0).versionNumber(1).isCurrent(false).build());
-        Route v2 = routeRepository.save(Route.builder()
+        routeRepository.save(Route.builder()
                 .delivery(delivery).sourceLocation(loc1).destinationLocation(loc2).totalDistance(9.0).versionNumber(2).isCurrent(true).build());
 
         Optional<Route> foundV1 = routeRepository.findByDeliveryIdAndVersionNumber(delivery.getId(), 1);

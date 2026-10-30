@@ -11,7 +11,6 @@ import com.routeoptimizer.research.domain.HistoricalRoute;
 import com.routeoptimizer.research.domain.HistoricalTask;
 import com.routeoptimizer.research.domain.ResearchTaskType;
 import com.routeoptimizer.research.repository.HistoricalRouteRepository;
-import com.routeoptimizer.research.repository.HistoricalTaskRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,9 +35,6 @@ public class ResearchModuleIntegrationTest {
 
     @Autowired
     private HistoricalRouteRepository historicalRouteRepository;
-
-    @Autowired
-    private HistoricalTaskRepository historicalTaskRepository;
 
     @Autowired
     private DriverRepository driverRepository;

@@ -28,6 +28,12 @@ public class MultiStopManifestResponse {
     private Double vehicleCapacityKg;
     private Double totalWeightKg;
     private Boolean isCompleted;
+    private String routeStatus;
+    private Boolean canConfirmReturn;
+    private java.time.OffsetDateTime returnedToHubAt;
+    private String returnConfirmedBy;
+    private Double returnLegDistance;
+    private Double returnLegDuration;
     private List<ManifestStopResponse> stops;
     private List<List<Double>> geometryCoordinates;
 }

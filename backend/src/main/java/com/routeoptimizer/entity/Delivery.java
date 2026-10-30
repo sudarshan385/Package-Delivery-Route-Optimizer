@@ -71,6 +71,9 @@ public class Delivery extends BaseAuditableEntity {
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
 
+    @Column(name = "return_confirmed_at")
+    private OffsetDateTime returnConfirmedAt;
+
     @OneToMany(mappedBy = "delivery", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private java.util.List<DeliveryLeg> legs = new java.util.ArrayList<>();

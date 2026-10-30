@@ -71,6 +71,20 @@ export default function Deliveries() {
   const [legacyAssignForm, setLegacyAssignForm] = useState({ driverId: '', vehicleId: '', notes: '' });
   const [legacyError, setLegacyError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [confirmingDeliveryId, setConfirmingDeliveryId] = useState(null);
+
+  const handleConfirmDeliveryReturn = async (deliveryId) => {
+    setConfirmingDeliveryId(deliveryId);
+    try {
+      await api.post(`/deliveries/${deliveryId}/confirm-return`);
+      setSuccessMessage(`Delivery #${deliveryId} return to hub confirmed! Driver and vehicle released to AVAILABLE.`);
+      fetchData();
+    } catch (err) {
+      alert(parseApiError(err, 'Failed to confirm return to hub'));
+    } finally {
+      setConfirmingDeliveryId(null);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -84,7 +98,7 @@ export default function Deliveries() {
           api.get('/drivers', { params: { size: 200 } }),
           api.get('/vehicles', { params: { size: 200 } }),
           api.get('/locations', { params: { size: 200 } }),
-          api.get('/packages', { params: { size: 200 } }),
+          api.get('/packages', { params: { size: 200 } }).catch(() => ({ data: { content: [] } })),
         ]);
 
         setDeliveries(Array.isArray(dRes.data) ? dRes.data : dRes.data.content || []);
@@ -1079,6 +1093,7 @@ export default function Deliveries() {
                     <TableHead>Assigned Vehicle</TableHead>
                     <TableHead>Lifecycle Status</TableHead>
                     <TableHead>Updated</TableHead>
+                    <TableHead style={{ textAlign: 'right' }}>Actions</TableHead>
                   </tr>
                 </TableHeader>
                 <TableBody>
@@ -1105,6 +1120,26 @@ export default function Deliveries() {
                       </TableCell>
                       <TableCell style={{ fontSize: 11, color: 'var(--theme-muted)' }}>
                         {d.updatedAt ? new Date(d.updatedAt).toLocaleString() : '—'}
+                      </TableCell>
+                      <TableCell style={{ textAlign: 'right' }}>
+                        {(d.canConfirmReturn || d.routeStatus === 'RETURNING_TO_HUB') && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={CheckCircle2}
+                            onClick={() => handleConfirmDeliveryReturn(d.id)}
+                            loading={confirmingDeliveryId === d.id}
+                            style={{ backgroundColor: '#6366f1', borderColor: '#6366f1' }}
+                            id={`confirm-return-del-${d.id}`}
+                          >
+                            Confirm Return
+                          </Button>
+                        )}
+                        {d.returnConfirmedAt && (
+                          <span style={{ color: '#10b981', fontSize: 11, fontWeight: 600 }}>
+                            Returned ✓
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

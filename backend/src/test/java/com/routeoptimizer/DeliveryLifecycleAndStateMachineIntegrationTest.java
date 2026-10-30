@@ -48,12 +48,6 @@ class DeliveryLifecycleAndStateMachineIntegrationTest {
     private VehicleRepository vehicleRepository;
 
     @Autowired
-    private DeliveryRepository deliveryRepository;
-
-    @Autowired
-    private DeliveryStatusHistoryRepository deliveryStatusHistoryRepository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private static final List<String> REQUIRED_TABLES = Arrays.asList(

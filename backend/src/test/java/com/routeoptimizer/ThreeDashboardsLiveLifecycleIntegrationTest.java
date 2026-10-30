@@ -58,18 +58,6 @@ public class ThreeDashboardsLiveLifecycleIntegrationTest {
     private LocationRepository locationRepository;
 
     @Autowired
-    private DeliveryRepository deliveryRepository;
-
-    @Autowired
-    private DeliveryLegRepository deliveryLegRepository;
-
-    @Autowired
-    private ShipmentEventRepository shipmentEventRepository;
-
-    @Autowired
-    private PackageRepository packageRepository;
-
-    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private User customerUser;

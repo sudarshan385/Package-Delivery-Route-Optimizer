@@ -3,7 +3,6 @@ package com.routeoptimizer.research.tsmtw.service;
 import com.routeoptimizer.entity.LocationEdge;
 import com.routeoptimizer.repository.LocationEdgeRepository;
 import com.routeoptimizer.research.domain.ResearchTaskType;
-import com.routeoptimizer.research.tsmtw.domain.CandidateRoute;
 import com.routeoptimizer.research.tsmtw.domain.TSMTWRequest;
 import com.routeoptimizer.research.tsmtw.domain.TSMTWResult;
 import com.routeoptimizer.research.tsmtw.domain.TSMTWTask;

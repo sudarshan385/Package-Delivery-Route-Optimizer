@@ -1,6 +1,5 @@
 package com.routeoptimizer.research.ideeproute;
 
-import com.routeoptimizer.entity.Delivery;
 import com.routeoptimizer.entity.Driver;
 import com.routeoptimizer.research.domain.HistoricalRoute;
 import com.routeoptimizer.research.domain.HistoricalTask;

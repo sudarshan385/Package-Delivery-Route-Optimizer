@@ -54,6 +54,13 @@ public class Package extends BaseAuditableEntity {
     @JoinColumn(name = "destination_location_id", nullable = true)
     private Location destinationLocation;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "nearest_hub_id", nullable = true)
+    private Location nearestHub;
+
+    @Column(name = "nearest_hub_distance")
+    private Double nearestHubDistance;
+
     @Column(nullable = false)
     private Double weight;
 

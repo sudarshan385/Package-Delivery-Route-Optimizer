@@ -431,6 +431,61 @@ public class UserPackageCreationAndListIntegrationTest {
         assertThat(updateResp.getBody().getCustomerId()).isEqualTo(userBob.getId());
     }
 
+    @Test
+    @DisplayName("8. List packages when destination is collocated with active hub without constraint violation")
+    void testListPackagesWithCollocatedHubDestination() {
+        Location collocatedDest = Location.builder()
+                .name("Collocated Customer Spot")
+                .city("Bengaluru")
+                .address("Near MG Road Yard")
+                .latitude(activeHub.getLatitude())
+                .longitude(activeHub.getLongitude())
+                .locationType("CUSTOMER")
+                .build();
+        collocatedDest.setActive(true);
+        collocatedDest.setVersion(0L);
+        collocatedDest = locationRepository.save(collocatedDest);
+
+        Package pkg = Package.builder()
+                .trackingNumber("PKG-COLLOCATED-001")
+                .senderName("Alice Customer")
+                .receiverName("Bob Collocated")
+                .city("Bengaluru")
+                .pickupLocation("MG Road")
+                .deliveryLocation("Near MG Road Yard")
+                .sourceLocation(activeHub)
+                .destinationLocation(collocatedDest)
+                .nearestHub(null)
+                .nearestHubDistance(null)
+                .customer(userAlice)
+                .weight(1.5)
+                .priority(Priority.MEDIUM)
+                .status(PackageStatus.PENDING)
+                .build();
+        pkg.setActive(true);
+        pkg.setVersion(0L);
+        packageRepository.save(pkg);
+
+        ResponseEntity<TestPageResponse<PackageResponse>> listResp = restTemplate.exchange(
+                "/api/packages",
+                HttpMethod.GET,
+                new HttpEntity<>(aliceHeaders),
+                new ParameterizedTypeReference<TestPageResponse<PackageResponse>>() {}
+        );
+
+        assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        TestPageResponse<PackageResponse> page = listResp.getBody();
+        assertThat(page).isNotNull();
+        assertThat(page.getContent()).isNotEmpty();
+        PackageResponse found = page.getContent().stream()
+                .filter(p -> "PKG-COLLOCATED-001".equals(p.getTrackingNumber()))
+                .findFirst()
+                .orElse(null);
+        assertThat(found).isNotNull();
+        assertThat(found.getNearestHubId()).isEqualTo(activeHub.getId());
+        assertThat(found.getNearestHubDistance()).isEqualTo(0.0);
+    }
+
     // Helper class for Spring Page deserialization in TestRestTemplate
     public static class TestPageResponse<T> {
         private java.util.List<T> content = new java.util.ArrayList<>();

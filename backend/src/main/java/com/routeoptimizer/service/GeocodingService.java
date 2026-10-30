@@ -307,7 +307,7 @@ public class GeocodingService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class NominatimResponse {
+    public static class NominatimResponse {
         @JsonProperty("display_name")
         private String displayName;
         private String lat;

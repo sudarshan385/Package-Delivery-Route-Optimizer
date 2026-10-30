@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.routeoptimizer.dto.SetupRequest;
 import com.routeoptimizer.entity.User;
 import com.routeoptimizer.enums.Role;
-import com.routeoptimizer.repository.DriverRepository;
 import com.routeoptimizer.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,9 +38,6 @@ class InitialAdminSetupIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Autowired
-    private DriverRepository driverRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -147,50 +142,51 @@ class InitialAdminSetupIntegrationTest {
     @DisplayName("Concurrent setup requests allow exactly one successful first-admin creation")
     void concurrentSetupAllowsExactlyOneAdminCreation() throws Exception {
         int threadCount = 10;
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch doneLatch = new CountDownLatch(threadCount);
-
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger conflictCount = new AtomicInteger(0);
         List<Throwable> errors = new CopyOnWriteArrayList<>();
+        boolean completed;
 
-        for (int i = 0; i < threadCount; i++) {
-            final int index = i;
-            executor.submit(() -> {
-                try {
-                    startLatch.await(); // Synchronize all threads to fire simultaneously
+        try (ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch doneLatch = new CountDownLatch(threadCount);
 
-                    SetupRequest request = SetupRequest.builder()
-                            .username("admin_" + index)
-                            .email("admin_" + index + "@test.com")
-                            .password("SecurePassword" + index)
-                            .fullName("Admin " + index)
-                            .build();
+            for (int i = 0; i < threadCount; i++) {
+                final int index = i;
+                executor.submit(() -> {
+                    try {
+                        startLatch.await(); // Synchronize all threads to fire simultaneously
 
-                    var result = mockMvc.perform(post("/api/auth/setup")
-                                    .contentType(MediaType.APPLICATION_JSON)
-                                    .content(objectMapper.writeValueAsString(request)))
-                            .andReturn();
+                        SetupRequest request = SetupRequest.builder()
+                                .username("admin_" + index)
+                                .email("admin_" + index + "@test.com")
+                                .password("SecurePassword" + index)
+                                .fullName("Admin " + index)
+                                .build();
 
-                    int statusCode = result.getResponse().getStatus();
-                    if (statusCode == 201) {
-                        successCount.incrementAndGet();
-                    } else if (statusCode == 409) {
-                        conflictCount.incrementAndGet();
+                        var result = mockMvc.perform(post("/api/auth/setup")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(objectMapper.writeValueAsString(request)))
+                                .andReturn();
+
+                        int statusCode = result.getResponse().getStatus();
+                        if (statusCode == 201) {
+                            successCount.incrementAndGet();
+                        } else if (statusCode == 409) {
+                            conflictCount.incrementAndGet();
+                        }
+                    } catch (Throwable t) {
+                        errors.add(t);
+                    } finally {
+                        doneLatch.countDown();
                     }
-                } catch (Throwable t) {
-                    errors.add(t);
-                } finally {
-                    doneLatch.countDown();
-                }
-            });
-        }
+                });
+            }
 
-        // Fire all threads at the exact same moment
-        startLatch.countDown();
-        boolean completed = doneLatch.await(15, TimeUnit.SECONDS);
-        executor.shutdown();
+            // Fire all threads at the exact same moment
+            startLatch.countDown();
+            completed = doneLatch.await(15, TimeUnit.SECONDS);
+        }
 
         assertThat(completed).isTrue();
         assertThat(errors).isEmpty();

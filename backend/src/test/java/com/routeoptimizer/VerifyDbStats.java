@@ -17,17 +17,19 @@ public class VerifyDbStats {
              Statement stmt = conn.createStatement()) {
              
             System.out.println("=== Database: " + dbName + " ===");
-            ResultSet rs = stmt.executeQuery("SELECT current_database()");
-            if (rs.next()) {
-                System.out.println("Connected DB Name: " + rs.getString(1));
+            try (ResultSet rs = stmt.executeQuery("SELECT current_database()")) {
+                if (rs.next()) {
+                    System.out.println("Connected DB Name: " + rs.getString(1));
+                }
             }
             
             String[] tables = {"users", "locations", "route_edges", "packages", "deliveries"};
             for (String table : tables) {
                 try {
-                    ResultSet countRs = stmt.executeQuery("SELECT COUNT(*) FROM " + table);
-                    if (countRs.next()) {
-                        System.out.println("Table " + table + " row count: " + countRs.getInt(1));
+                    try (ResultSet countRs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                        if (countRs.next()) {
+                            System.out.println("Table " + table + " row count: " + countRs.getInt(1));
+                        }
                     }
                 } catch (Exception ex) {
                     System.out.println("Table " + table + " check failed: " + ex.getMessage());

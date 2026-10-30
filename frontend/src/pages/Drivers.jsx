@@ -79,6 +79,11 @@ export default function Drivers() {
       return;
     }
 
+    if (editing && (editing.status === 'ON_DELIVERY' || editing.inActiveDelivery) && form.status !== 'ON_DELIVERY') {
+      setError('Cannot change status while driver is on active delivery.');
+      return;
+    }
+
     try {
       const payload = {
         name: trimmedName,
@@ -243,10 +248,16 @@ export default function Drivers() {
             id="driver-status"
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
+            disabled={editing && (editing.status === 'ON_DELIVERY' || editing.inActiveDelivery)}
+            helperText={
+              editing && (editing.status === 'ON_DELIVERY' || editing.inActiveDelivery)
+                ? 'Driver is currently on active delivery. Status cannot be modified manually.'
+                : undefined
+            }
           >
             <option value="AVAILABLE">Available</option>
-            <option value="UNAVAILABLE">Unavailable</option>
             <option value="ON_DELIVERY">On Delivery</option>
+            <option value="OFF_DUTY">Off Duty</option>
           </Select>
         </form>
       </Modal>

@@ -21,6 +21,7 @@ public class VehicleResponse {
     private VehicleType vehicleType;
     private Double capacity;
     private VehicleStatus status;
+    private Boolean inActiveDelivery;
     private Boolean active;
     private Long version;
     private OffsetDateTime createdAt;
@@ -30,12 +31,14 @@ public class VehicleResponse {
         if (vehicle == null) {
             return null;
         }
+        boolean activeDel = vehicle.getStatus() == VehicleStatus.IN_USE;
         return VehicleResponse.builder()
                 .id(vehicle.getId())
                 .registrationNumber(vehicle.getRegistrationNumber())
                 .vehicleType(vehicle.getVehicleType())
                 .capacity(vehicle.getCapacity())
                 .status(vehicle.getStatus())
+                .inActiveDelivery(activeDel)
                 .active(vehicle.getActive())
                 .version(vehicle.getVersion())
                 .createdAt(vehicle.getCreatedAt())

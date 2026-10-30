@@ -2,10 +2,8 @@ package com.routeoptimizer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.routeoptimizer.dto.LoginRequest;
-import com.routeoptimizer.dto.SetupRequest;
 import com.routeoptimizer.entity.User;
 import com.routeoptimizer.enums.Role;
-import com.routeoptimizer.repository.DriverRepository;
 import com.routeoptimizer.repository.UserRepository;
 import com.routeoptimizer.security.JwtTokenProvider;
 import org.junit.jupiter.api.AfterEach;
@@ -19,7 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,9 +35,6 @@ class AuthenticationAndJwtIntegrationTest {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Autowired
-    private DriverRepository driverRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;

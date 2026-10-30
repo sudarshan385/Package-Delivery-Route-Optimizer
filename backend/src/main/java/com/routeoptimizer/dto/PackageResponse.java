@@ -30,8 +30,13 @@ public class PackageResponse {
     private Long customerId;
     private Long sourceLocationId;
     private String sourceLocationName;
+    private Long departureHubId;
+    private String departureHubName;
     private Long destinationLocationId;
     private String destinationLocationName;
+    private Long nearestHubId;
+    private String nearestHubName;
+    private Double nearestHubDistance;
     private Double weight;
     private Priority priority;
     private PackageStatus status;
@@ -67,6 +72,16 @@ public class PackageResponse {
             mode = FulfillmentMode.HUB_STAGED;
         }
 
+        Long depHubId = null;
+        String depHubName = null;
+        if (mode == FulfillmentMode.HUB_STAGED && pkg.getSourceLocation() != null) {
+            depHubId = pkg.getSourceLocation().getId();
+            depHubName = pkg.getSourceLocation().getName();
+        }
+
+        Long nearHubId = pkg.getNearestHub() != null ? pkg.getNearestHub().getId() : null;
+        String nearHubName = pkg.getNearestHub() != null ? pkg.getNearestHub().getName() : null;
+
         return PackageResponse.builder()
                 .id(pkg.getId())
                 .trackingNumber(pkg.getTrackingNumber())
@@ -81,8 +96,13 @@ public class PackageResponse {
                 .customerId(pkg.getCustomer() != null ? pkg.getCustomer().getId() : null)
                 .sourceLocationId(pkg.getSourceLocation() != null ? pkg.getSourceLocation().getId() : null)
                 .sourceLocationName(sourceName)
+                .departureHubId(depHubId)
+                .departureHubName(depHubName)
                 .destinationLocationId(pkg.getDestinationLocation() != null ? pkg.getDestinationLocation().getId() : null)
                 .destinationLocationName(destName)
+                .nearestHubId(nearHubId)
+                .nearestHubName(nearHubName)
+                .nearestHubDistance(pkg.getNearestHubDistance())
                 .weight(pkg.getWeight())
                 .priority(pkg.getPriority())
                 .status(pkg.getStatus())

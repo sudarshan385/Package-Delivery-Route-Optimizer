@@ -3,7 +3,6 @@ package com.routeoptimizer.service;
 import com.routeoptimizer.dto.LocationResponse;
 import com.routeoptimizer.entity.Location;
 import com.routeoptimizer.exception.ResourceNotFoundException;
-import com.routeoptimizer.repository.DeliveryLegRepository;
 import com.routeoptimizer.repository.DeliveryRepository;
 import com.routeoptimizer.repository.LocationRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,6 @@ public class BengaluruHubService {
 
     private final LocationRepository locationRepository;
     private final DeliveryRepository deliveryRepository;
-    private final DeliveryLegRepository deliveryLegRepository;
 
     public record CandidateHub(String zoneName, String canonicalName, String address, double lat, double lng) {}
 
@@ -108,17 +106,40 @@ public class BengaluruHubService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getAllActiveHubsWithWorkloads() {
-        List<Location> hubs = locationRepository.findAll().stream()
+        List<Location> rawHubs = locationRepository.findAll().stream()
                 .filter(l -> Boolean.TRUE.equals(l.getActive()) && 
-                        ("HUB".equalsIgnoreCase(l.getLocationType()) || "DEPOT".equalsIgnoreCase(l.getLocationType())))
-                .sorted(Comparator.comparing(Location::getName))
+                        l.getLatitude() != null && l.getLongitude() != null &&
+                        l.getName() != null && !l.getName().toUpperCase().startsWith("PKG-") &&
+                        ("HUB".equalsIgnoreCase(l.getLocationType()) || "DEPOT".equalsIgnoreCase(l.getLocationType()) || "hub".equalsIgnoreCase(l.getLocationType())))
+                .sorted(Comparator.comparing(Location::getId))
                 .toList();
+
+        // Deduplicate identical coordinates at service layer to eliminate duplicate seed nodes
+        Map<String, Location> canonicalMap = new LinkedHashMap<>();
+        for (Location h : rawHubs) {
+            String coordKey = String.format(java.util.Locale.US, "%.4f,%.4f", h.getLatitude(), h.getLongitude());
+            if (!canonicalMap.containsKey(coordKey)) {
+                canonicalMap.put(coordKey, h);
+            } else {
+                // If existing has timestamp in name and current does not, prefer current
+                Location existing = canonicalMap.get(coordKey);
+                boolean existingHasTimestamp = existing.getName().matches(".*\\d{9,11}(\\.\\d+)?$");
+                boolean currentHasTimestamp = h.getName().matches(".*\\d{9,11}(\\.\\d+)?$");
+                if (existingHasTimestamp && !currentHasTimestamp) {
+                    canonicalMap.put(coordKey, h);
+                }
+            }
+        }
+
+        List<Location> hubs = new ArrayList<>(canonicalMap.values());
+        hubs.sort(Comparator.comparing(l -> l.getName().replaceAll("\\s+\\d{9,11}(\\.\\d+)?$", "").trim()));
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Location hub : hubs) {
+            String cleanName = hub.getName().replaceAll("\\s+\\d{9,11}(\\.\\d+)?$", "").trim();
             Map<String, Object> hubMap = new LinkedHashMap<>();
             hubMap.put("id", hub.getId());
-            hubMap.put("name", hub.getName());
+            hubMap.put("name", cleanName);
             hubMap.put("address", hub.getAddress());
             hubMap.put("city", hub.getCity() != null ? hub.getCity() : "Bengaluru");
             hubMap.put("latitude", hub.getLatitude());

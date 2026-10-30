@@ -35,6 +35,8 @@ public class ProblemDetailsAccessDeniedHandler implements AccessDeniedHandler {
         problem.setType(URI.create("urn:problem-type:forbidden"));
         problem.setInstance(URI.create(request.getRequestURI()));
 
-        response.getWriter().write(objectMapper.writeValueAsString(problem));
+        try (java.io.OutputStream os = response.getOutputStream()) {
+            objectMapper.writeValue(os, problem);
+        }
     }
 }

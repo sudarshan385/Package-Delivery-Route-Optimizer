@@ -63,15 +63,6 @@ public class BatchRoutingAndCorridorIntegrationTest {
     private DeliveryLegRepository deliveryLegRepository;
 
     @Autowired
-    private ShipmentEventRepository shipmentEventRepository;
-
-    @Autowired
-    private PackageRepository packageRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
     private RouteStopRepository routeStopRepository;
 
     @Autowired
@@ -445,9 +436,9 @@ public class BatchRoutingAndCorridorIntegrationTest {
     @WithMockUser(username = "batch_admin", roles = {"ADMIN"})
     public void testThreeShipmentBatchPickupOptimization() throws Exception {
         // Create 3 genuine shipments with pickup locations within 10 km corridor of Central Hub (Koramangala)
-        Long s1Id = createShipment(12.9784, 77.6408, 12.9345, 77.6265, 2.5, "Indiranagar Batch Parcel");
-        Long s2Id = createShipment(12.9352, 77.6245, 12.9345, 77.6265, 3.0, "Koramangala 5th Block Parcel");
-        Long s3Id = createShipment(12.9165, 77.6101, 12.9345, 77.6265, 1.5, "BTM Layout Batch Parcel");
+        createShipment(12.9784, 77.6408, 12.9345, 77.6265, 2.5, "Indiranagar Batch Parcel");
+        createShipment(12.9352, 77.6245, 12.9345, 77.6265, 3.0, "Koramangala 5th Block Parcel");
+        createShipment(12.9165, 77.6101, 12.9345, 77.6265, 1.5, "BTM Layout Batch Parcel");
 
         // 1. Propose Batch Pickup
         MvcResult res = mockMvc.perform(get("/api/shipments/batch/propose-pickup")
@@ -544,9 +535,9 @@ public class BatchRoutingAndCorridorIntegrationTest {
     @WithMockUser(username = "batch_admin", roles = {"ADMIN"})
     public void testThreeShipmentBatchFinalMileDeliveryOptimization() throws Exception {
         // Create 3 shipments destined for different areas
-        Long s1 = createShipment(12.9352, 77.6245, 12.9784, 77.6408, 1.5, "Indiranagar Final Dest");
-        Long s2 = createShipment(12.9352, 77.6245, 12.9280, 77.6200, 2.0, "Koramangala Final Dest");
-        Long s3 = createShipment(12.9352, 77.6245, 12.9165, 77.6101, 1.0, "BTM Final Dest");
+        createShipment(12.9352, 77.6245, 12.9784, 77.6408, 1.5, "Indiranagar Final Dest");
+        createShipment(12.9352, 77.6245, 12.9280, 77.6200, 2.0, "Koramangala Final Dest");
+        createShipment(12.9352, 77.6245, 12.9165, 77.6101, 1.0, "BTM Final Dest");
 
         // Simulate packages genuinely received at Central Hub
         for (Delivery d : deliveryRepository.findAll()) {

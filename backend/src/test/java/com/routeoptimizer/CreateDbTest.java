@@ -16,12 +16,13 @@ public class CreateDbTest {
             try (Connection conn = DriverManager.getConnection(url, "postgres", "root");
                  Statement stmt = conn.createStatement()) {
                 
-                ResultSet rs = stmt.executeQuery("SELECT 1 FROM pg_database WHERE datname = 'route_optimizer_test_db'");
-                if (!rs.next()) {
-                    stmt.executeUpdate("CREATE DATABASE route_optimizer_test_db");
-                    System.out.println("TEST DB CREATED SUCCESSFULLY");
-                } else {
-                    System.out.println("TEST DB ALREADY EXISTS");
+                try (ResultSet rs = stmt.executeQuery("SELECT 1 FROM pg_database WHERE datname = 'route_optimizer_test_db'")) {
+                    if (!rs.next()) {
+                        stmt.executeUpdate("CREATE DATABASE route_optimizer_test_db");
+                        System.out.println("TEST DB CREATED SUCCESSFULLY");
+                    } else {
+                        System.out.println("TEST DB ALREADY EXISTS");
+                    }
                 }
             }
         } catch (Exception e) {

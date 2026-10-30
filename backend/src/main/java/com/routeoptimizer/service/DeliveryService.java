@@ -213,15 +213,27 @@ public class DeliveryService {
             case COMPLETED -> {
                 pkg.setStatus(PackageStatus.DELIVERED);
                 delivery.setCompletedAt(OffsetDateTime.now());
-                releaseResources(delivery);
+                if (delivery.getRoute() != null) {
+                    Route route = delivery.getRoute();
+                    boolean hasOtherNonTerminal = deliveryRepository.existsActiveNonTerminalByRouteIdExcluding(
+                            route.getId(),
+                            delivery.getId(),
+                            List.of(DeliveryStatus.COMPLETED, DeliveryStatus.FAILED, DeliveryStatus.CANCELLED)
+                    );
+                    if (!hasOtherNonTerminal) {
+                        route.setStatus("RETURNING_TO_HUB");
+                        routeRepository.save(route);
+                    }
+                }
+                // Resources remain occupied (Driver ON_DELIVERY, Vehicle IN_USE) until Return to Hub is confirmed.
             }
             case FAILED -> {
                 pkg.setStatus(PackageStatus.FAILED);
-                releaseResources(delivery);
+                releaseResourcesIfNoCompletedDeliveries(delivery);
             }
             case CANCELLED -> {
                 pkg.setStatus(PackageStatus.PENDING);
-                releaseResources(delivery);
+                releaseResourcesIfNoCompletedDeliveries(delivery);
             }
             default -> { /* No-op */ }
         }
@@ -259,9 +271,7 @@ public class DeliveryService {
         }
     }
 
-    private void releaseResources(Delivery delivery) {
-        // If delivery is associated with a multi-stop route, only release driver and vehicle
-        // if ALL other active deliveries on the same route have reached terminal states
+    private void releaseResourcesIfNoCompletedDeliveries(Delivery delivery) {
         if (delivery.getRoute() != null) {
             boolean hasOtherNonTerminal = deliveryRepository.existsActiveNonTerminalByRouteIdExcluding(
                     delivery.getRoute().getId(),
@@ -269,12 +279,21 @@ public class DeliveryService {
                     List.of(DeliveryStatus.COMPLETED, DeliveryStatus.FAILED, DeliveryStatus.CANCELLED)
             );
             if (hasOtherNonTerminal) {
-                // Non-terminal deliveries remain on this manifest.
-                // Driver remains ON_DELIVERY and vehicle remains IN_USE until all deliveries complete.
+                return;
+            }
+
+            // Check if any delivery on this route was COMPLETED
+            List<Delivery> routeDeliveries = deliveryRepository.findByRouteIdAndActiveTrue(delivery.getRoute().getId());
+            boolean anyCompleted = routeDeliveries.stream().anyMatch(d -> d.getStatus() == DeliveryStatus.COMPLETED);
+            if (anyCompleted) {
+                // Since at least one parcel was delivered, the driver is returning to hub.
+                delivery.getRoute().setStatus("RETURNING_TO_HUB");
+                routeRepository.save(delivery.getRoute());
                 return;
             }
         }
 
+        // Only release driver and vehicle if tour was completely aborted/cancelled with 0 deliveries
         if (delivery.getDriver() != null && delivery.getDriver().getStatus() == DriverStatus.ON_DELIVERY) {
             Driver driver = delivery.getDriver();
             driver.setStatus(DriverStatus.AVAILABLE);
@@ -285,6 +304,71 @@ public class DeliveryService {
             vehicle.setStatus(VehicleStatus.AVAILABLE);
             vehicleRepository.save(vehicle);
         }
+    }
+
+    @Transactional
+    public MultiStopManifestResponse confirmRouteReturnToHub(Long routeId, String currentUsername) {
+        Route route = routeRepository.findById(routeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Route not found with id: " + routeId));
+
+        if ("COMPLETED".equalsIgnoreCase(route.getStatus()) && route.getReturnedToHubAt() != null) {
+            return buildManifestResponse(route);
+        }
+
+        route.setStatus("COMPLETED");
+        route.setReturnedToHubAt(OffsetDateTime.now());
+        route.setReturnConfirmedBy(currentUsername != null ? currentUsername : "SYSTEM");
+        routeRepository.save(route);
+
+        List<Delivery> routeDeliveries = deliveryRepository.findByRouteIdAndActiveTrue(route.getId());
+        for (Delivery d : routeDeliveries) {
+            if (d.getReturnConfirmedAt() == null) {
+                d.setReturnConfirmedAt(OffsetDateTime.now());
+                deliveryRepository.save(d);
+            }
+            if (d.getDriver() != null && d.getDriver().getStatus() == DriverStatus.ON_DELIVERY) {
+                Driver driver = d.getDriver();
+                driver.setStatus(DriverStatus.AVAILABLE);
+                driverRepository.save(driver);
+            }
+            if (d.getVehicle() != null && d.getVehicle().getStatus() == VehicleStatus.IN_USE) {
+                Vehicle vehicle = d.getVehicle();
+                vehicle.setStatus(VehicleStatus.AVAILABLE);
+                vehicleRepository.save(vehicle);
+            }
+        }
+
+        return buildManifestResponse(route);
+    }
+
+    @Transactional
+    public DeliveryResponse confirmDeliveryReturnToHub(Long deliveryId, String currentUsername) {
+        Delivery delivery = deliveryRepository.findByIdWithLock(deliveryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Delivery not found with id: " + deliveryId));
+
+        if (delivery.getRoute() != null) {
+            confirmRouteReturnToHub(delivery.getRoute().getId(), currentUsername);
+            return mapToDeliveryResponse(delivery);
+        }
+
+        if (delivery.getReturnConfirmedAt() != null) {
+            return mapToDeliveryResponse(delivery);
+        }
+
+        delivery.setReturnConfirmedAt(OffsetDateTime.now());
+        if (delivery.getDriver() != null && delivery.getDriver().getStatus() == DriverStatus.ON_DELIVERY) {
+            Driver driver = delivery.getDriver();
+            driver.setStatus(DriverStatus.AVAILABLE);
+            driverRepository.save(driver);
+        }
+        if (delivery.getVehicle() != null && delivery.getVehicle().getStatus() == VehicleStatus.IN_USE) {
+            Vehicle vehicle = delivery.getVehicle();
+            vehicle.setStatus(VehicleStatus.AVAILABLE);
+            vehicleRepository.save(vehicle);
+        }
+
+        Delivery saved = deliveryRepository.save(delivery);
+        return mapToDeliveryResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -668,6 +752,28 @@ public class DeliveryService {
 
         Location hub = route.getSourceLocation();
 
+        String routeStatus = route.getStatus() != null ? route.getStatus() : "ACTIVE";
+        boolean canConfirmReturn = false;
+        if (allTerminal) {
+            if ("COMPLETED".equalsIgnoreCase(routeStatus)) {
+                canConfirmReturn = false;
+            } else {
+                routeStatus = "RETURNING_TO_HUB";
+                canConfirmReturn = true;
+            }
+        }
+
+        Double returnLegDist = route.getReturnDistance();
+        Double returnLegDur = route.getReturnEstimatedTime();
+        if (returnLegDist == null) {
+            RouteStop returnStop = stops.stream().filter(s -> s.getStopType() == StopType.HUB_RETURN).findFirst().orElse(null);
+            if (returnStop != null && returnStop.getStopOrder() > 1 && returnStop.getStopOrder() - 2 < edges.size()) {
+                RouteEdge incomingEdge = edges.get(returnStop.getStopOrder() - 2);
+                returnLegDist = incomingEdge.getDistance();
+                returnLegDur = incomingEdge.getEstimatedTime();
+            }
+        }
+
         return MultiStopManifestResponse.builder()
                 .routeId(route.getId())
                 .hubId(hub != null ? hub.getId() : null)
@@ -676,6 +782,12 @@ public class DeliveryService {
                 .hubLatitude(hub != null ? hub.getLatitude() : null)
                 .hubLongitude(hub != null ? hub.getLongitude() : null)
                 .returnToHub(returnToHub)
+                .routeStatus(routeStatus)
+                .canConfirmReturn(canConfirmReturn)
+                .returnedToHubAt(route.getReturnedToHubAt())
+                .returnConfirmedBy(route.getReturnConfirmedBy())
+                .returnLegDistance(returnLegDist)
+                .returnLegDuration(returnLegDur)
                 .totalDistance(route.getTotalDistance())
                 .totalEstimatedTime(route.getEstimatedTime())
                 .algorithmUsed(route.getAlgorithmUsed())
@@ -693,6 +805,21 @@ public class DeliveryService {
     }
 
     public DeliveryResponse mapToDeliveryResponse(Delivery d) {
+        String rStatus = "ACTIVE";
+        boolean canConfirm = false;
+        if (d.getRoute() != null && d.getRoute().getStatus() != null) {
+            rStatus = d.getRoute().getStatus();
+            canConfirm = "RETURNING_TO_HUB".equalsIgnoreCase(rStatus);
+        } else if (d.getStatus() == DeliveryStatus.COMPLETED) {
+            if (d.getReturnConfirmedAt() != null) {
+                rStatus = "COMPLETED";
+                canConfirm = false;
+            } else {
+                rStatus = "RETURNING_TO_HUB";
+                canConfirm = true;
+            }
+        }
+
         return DeliveryResponse.builder()
                 .id(d.getId())
                 .packageId(d.getPackage() != null ? d.getPackage().getId() : null)
@@ -706,6 +833,9 @@ public class DeliveryService {
                 .vehicleId(d.getVehicle() != null ? d.getVehicle().getId() : null)
                 .vehicleRegistrationNumber(d.getVehicle() != null ? d.getVehicle().getRegistrationNumber() : null)
                 .status(d.getStatus())
+                .routeStatus(rStatus)
+                .canConfirmReturn(canConfirm)
+                .returnConfirmedAt(d.getReturnConfirmedAt())
                 .estimatedDistance(d.getEstimatedDistance())
                 .estimatedTime(d.getEstimatedTime())
                 .notes(d.getNotes())

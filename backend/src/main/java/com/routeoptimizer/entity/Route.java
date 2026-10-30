@@ -54,6 +54,22 @@ public class Route extends BaseAuditableEntity {
     @Builder.Default
     private String algorithmUsed = "DIJKSTRA";
 
+    @Column(name = "status", nullable = false, length = 30)
+    @Builder.Default
+    private String status = "ACTIVE";
+
+    @Column(name = "returned_to_hub_at")
+    private java.time.OffsetDateTime returnedToHubAt;
+
+    @Column(name = "return_confirmed_by", length = 100)
+    private String returnConfirmedBy;
+
+    @Column(name = "return_distance")
+    private Double returnDistance;
+
+    @Column(name = "return_estimated_time")
+    private Double returnEstimatedTime;
+
     @OneToMany(mappedBy = "route", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<RouteStop> stops = new ArrayList<>();

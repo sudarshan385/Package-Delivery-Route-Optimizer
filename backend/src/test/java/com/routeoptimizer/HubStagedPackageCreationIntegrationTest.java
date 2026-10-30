@@ -8,7 +8,6 @@ import com.routeoptimizer.enums.FulfillmentMode;
 import com.routeoptimizer.enums.PackageStatus;
 import com.routeoptimizer.enums.Role;
 import com.routeoptimizer.exception.ConflictException;
-import com.routeoptimizer.repository.DeliveryRepository;
 import com.routeoptimizer.repository.LocationRepository;
 import com.routeoptimizer.repository.PackageRepository;
 import com.routeoptimizer.repository.UserRepository;
@@ -43,9 +42,6 @@ public class HubStagedPackageCreationIntegrationTest {
 
     @Autowired
     private PackageRepository packageRepository;
-
-    @Autowired
-    private DeliveryRepository deliveryRepository;
 
     @Autowired
     private DeliveryService deliveryService;

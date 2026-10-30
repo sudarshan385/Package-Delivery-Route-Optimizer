@@ -24,7 +24,7 @@ public class AmazonDatasetProvider {
     public AmazonDatasetProvider() {
         this.mapper = new ObjectMapper();
         this.mapper.registerModule(new JavaTimeModule());
-        this.mapper.enable(com.fasterxml.jackson.core.JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS);
+        this.mapper.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS.mappedFeature());
         this.factory = mapper.getFactory();
     }
 
@@ -38,12 +38,13 @@ public class AmazonDatasetProvider {
         Map<String, Map<String, List<AmazonPackageRecord>>> packageMap = new HashMap<>();
 
         // 1. Parse route_data.json
-        try (JsonParser parser = factory.createParser(Files.newInputStream(routeData))) {
+        try (java.io.InputStream is = Files.newInputStream(routeData);
+             JsonParser parser = factory.createParser(is)) {
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("Expected data to start with an Object");
             }
             while (parser.nextToken() != JsonToken.END_OBJECT) {
-                String routeId = parser.getCurrentName();
+                String routeId = parser.currentName();
                 parser.nextToken(); // START_OBJECT for the route object
 
                 AmazonRouteRecord.AmazonRouteRecordBuilder builder = AmazonRouteRecord.builder().routeId(routeId);
@@ -51,7 +52,7 @@ public class AmazonDatasetProvider {
                 Map<String, List<AmazonPackageRecord>> currentPackages = new HashMap<>();
 
                 while (parser.nextToken() != JsonToken.END_OBJECT) {
-                    String fieldName = parser.getCurrentName();
+                    String fieldName = parser.currentName();
                     parser.nextToken();
                     switch (fieldName) {
                         case "station_code":
@@ -72,13 +73,13 @@ public class AmazonDatasetProvider {
                         case "stops":
                             if (parser.currentToken() == JsonToken.START_OBJECT) {
                                 while (parser.nextToken() != JsonToken.END_OBJECT) {
-                                    String stopId = parser.getCurrentName();
+                                    String stopId = parser.currentName();
                                     parser.nextToken(); // START_OBJECT for stop
 
                                     AmazonStopRecord.AmazonStopRecordBuilder stopBuilder = AmazonStopRecord.builder().stopId(stopId);
                                     currentPackages.put(stopId, new ArrayList<>());
                                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                                        String stopField = parser.getCurrentName();
+                                        String stopField = parser.currentName();
                                         parser.nextToken();
                                         switch (stopField) {
                                             case "lat":
@@ -94,17 +95,17 @@ public class AmazonDatasetProvider {
                                                 stopBuilder.zoneId(parser.getText());
                                                 break;
                                             default:
-                                                parser.skipChildren();
+                                                skipCurrentChildren(parser);
                                         }
                                     }
                                     currentStops.put(stopId, stopBuilder);
                                 }
                             } else {
-                                parser.skipChildren();
+                                skipCurrentChildren(parser);
                             }
                             break;
                         default:
-                            parser.skipChildren();
+                            skipCurrentChildren(parser);
                     }
                 }
                 routeBuilders.put(routeId, builder);
@@ -114,40 +115,41 @@ public class AmazonDatasetProvider {
         }
 
         // 2. Parse package_data.json
-        try (JsonParser parser = factory.createParser(Files.newInputStream(packageData))) {
+        try (java.io.InputStream is = Files.newInputStream(packageData);
+             JsonParser parser = factory.createParser(is)) {
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("Expected package data to start with an Object");
             }
             while (parser.nextToken() != JsonToken.END_OBJECT) {
-                String routeId = parser.getCurrentName();
+                String routeId = parser.currentName();
                 parser.nextToken(); // START_OBJECT for route packages
 
                 Map<String, List<AmazonPackageRecord>> routePackages = packageMap.get(routeId);
                 if (routePackages == null) {
                     // Route in package_data but not in route_data. Record mismatched.
-                    parser.skipChildren();
+                    skipCurrentChildren(parser);
                     continue;
                 }
 
                 while (parser.nextToken() != JsonToken.END_OBJECT) {
-                    String stopId = parser.getCurrentName();
+                    String stopId = parser.currentName();
                     parser.nextToken(); // START_OBJECT for stop packages
 
                     List<AmazonPackageRecord> stopPackages = routePackages.get(stopId);
                     if (stopPackages == null) {
                         // Stop in package_data but not in route_data
-                        parser.skipChildren();
+                        skipCurrentChildren(parser);
                         continue;
                     }
 
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        String packageId = parser.getCurrentName();
+                        String packageId = parser.currentName();
                         parser.nextToken(); // START_OBJECT for package
 
                         AmazonPackageRecord.AmazonPackageRecordBuilder packageBuilder = AmazonPackageRecord.builder().packageId(packageId);
 
                         while (parser.nextToken() != JsonToken.END_OBJECT) {
-                            String packageField = parser.getCurrentName();
+                            String packageField = parser.currentName();
                             parser.nextToken();
                             switch (packageField) {
                                 case "scan_status":
@@ -155,7 +157,7 @@ public class AmazonDatasetProvider {
                                     break;
                                 case "time_window":
                                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                                        String twField = parser.getCurrentName();
+                                        String twField = parser.currentName();
                                         parser.nextToken();
                                         if (parser.currentToken() == JsonToken.VALUE_NULL) continue;
                                         String textVal = parser.getText();
@@ -179,7 +181,7 @@ public class AmazonDatasetProvider {
                                 case "dimensions":
                                     Map<String, Double> dimensions = new HashMap<>();
                                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                                        String dimKey = parser.getCurrentName();
+                                        String dimKey = parser.currentName();
                                         parser.nextToken();
                                         if (parser.currentToken() != JsonToken.VALUE_NULL && !"NaN".equals(parser.getText())) {
                                             dimensions.put(dimKey, parser.getValueAsDouble());
@@ -188,7 +190,7 @@ public class AmazonDatasetProvider {
                                     packageBuilder.dimensions(dimensions);
                                     break;
                                 default:
-                                    parser.skipChildren();
+                                    skipCurrentChildren(parser);
                             }
                         }
                         stopPackages.add(packageBuilder.build());
@@ -199,26 +201,27 @@ public class AmazonDatasetProvider {
 
         // 3. Parse actual_sequences.json
         Map<String, Map<String, Integer>> sequences = new HashMap<>();
-        try (JsonParser parser = factory.createParser(Files.newInputStream(actualSequences))) {
+        try (java.io.InputStream is = Files.newInputStream(actualSequences);
+             JsonParser parser = factory.createParser(is)) {
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("Expected sequence data to start with an Object");
             }
             while (parser.nextToken() != JsonToken.END_OBJECT) {
-                String routeId = parser.getCurrentName();
+                String routeId = parser.currentName();
                 parser.nextToken(); // START_OBJECT for route sequence
                 
                 Map<String, Integer> routeSeq = new HashMap<>();
                 while (parser.nextToken() != JsonToken.END_OBJECT) {
-                    String seqField = parser.getCurrentName();
+                    String seqField = parser.currentName();
                     parser.nextToken();
                     if ("actual".equals(seqField)) {
                         while (parser.nextToken() != JsonToken.END_OBJECT) {
-                            String stopId = parser.getCurrentName();
+                            String stopId = parser.currentName();
                             parser.nextToken();
                             routeSeq.put(stopId, parser.getValueAsInt());
                         }
                     } else {
-                        parser.skipChildren();
+                        skipCurrentChildren(parser);
                     }
                 }
                 sequences.put(routeId, routeSeq);
@@ -270,5 +273,24 @@ public class AmazonDatasetProvider {
         }
 
         return finalRoutes;
+    }
+
+    private void skipCurrentChildren(JsonParser parser) throws IOException {
+        JsonToken current = parser.currentToken();
+        if (current != JsonToken.START_OBJECT && current != JsonToken.START_ARRAY) {
+            return;
+        }
+        int open = 1;
+        while (open > 0) {
+            JsonToken t = parser.nextToken();
+            if (t == null) {
+                break;
+            }
+            if (t == JsonToken.START_OBJECT || t == JsonToken.START_ARRAY) {
+                open++;
+            } else if (t == JsonToken.END_OBJECT || t == JsonToken.END_ARRAY) {
+                open--;
+            }
+        }
     }
 }

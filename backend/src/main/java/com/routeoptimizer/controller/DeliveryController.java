@@ -100,6 +100,22 @@ public class DeliveryController {
         return ResponseEntity.ok(deliveryService.getDeliveryHistory(id, userDetails.getUsername()));
     }
 
+    @PostMapping("/routes/{routeId}/confirm-return")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DRIVER')")
+    public ResponseEntity<MultiStopManifestResponse> confirmRouteReturnToHub(
+            @PathVariable Long routeId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(deliveryService.confirmRouteReturnToHub(routeId, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{id}/confirm-return")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DRIVER')")
+    public ResponseEntity<DeliveryResponse> confirmDeliveryReturnToHub(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(deliveryService.confirmDeliveryReturnToHub(id, userDetails.getUsername()));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DeliveryResponse> deactivateDelivery(@PathVariable Long id) {

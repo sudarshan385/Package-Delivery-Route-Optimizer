@@ -27,6 +27,9 @@ public class DeliveryResponse {
     private Double estimatedTime;
     private String notes;
     private OffsetDateTime completedAt;
+    private String routeStatus;
+    private Boolean canConfirmReturn;
+    private OffsetDateTime returnConfirmedAt;
     private Boolean active;
     private Long version;
     private OffsetDateTime createdAt;

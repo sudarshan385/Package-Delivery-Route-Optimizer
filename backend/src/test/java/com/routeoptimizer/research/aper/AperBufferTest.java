@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -108,7 +107,7 @@ public class AperBufferTest {
     public void testAperDoesNotBehaveAsUniformReplay() {
         // Uniform replay would give roughly equal chances to everything.
         // We'll put 1 extremely high priority item and 9 medium priority items in high-impact buffer.
-        AperTransition superHigh = buffer.store(Transition.builder().build(), 100.0, 0.0);
+        buffer.store(Transition.builder().build(), 100.0, 0.0);
         
         for (int i = 0; i < 9; i++) {
             buffer.store(Transition.builder().build(), 0.6, 0.0);

@@ -2,7 +2,6 @@ package com.routeoptimizer.service;
 
 import com.routeoptimizer.dto.*;
 import com.routeoptimizer.entity.*;
-import com.routeoptimizer.entity.Package;
 import com.routeoptimizer.enums.DeliveryStatus;
 import com.routeoptimizer.enums.Role;
 import com.routeoptimizer.enums.StopType;

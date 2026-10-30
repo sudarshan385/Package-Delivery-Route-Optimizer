@@ -79,6 +79,11 @@ export default function Vehicles() {
       return;
     }
 
+    if (editing && (editing.status === 'IN_USE' || editing.inActiveDelivery) && form.status !== 'IN_USE') {
+      setError('Cannot change vehicle status while vehicle is in active delivery.');
+      return;
+    }
+
     try {
       const payload = {
         registrationNumber: reg,
@@ -264,6 +269,12 @@ export default function Vehicles() {
             id="vehicle-status"
             value={form.status}
             onChange={(e) => setForm({ ...form, status: e.target.value })}
+            disabled={editing && (editing.status === 'IN_USE' || editing.inActiveDelivery)}
+            helperText={
+              editing && (editing.status === 'IN_USE' || editing.inActiveDelivery)
+                ? 'Cannot change vehicle status to OFFLINE or MAINTENANCE while vehicle is in active delivery.'
+                : undefined
+            }
           >
             <option value="AVAILABLE">Available</option>
             <option value="IN_USE">In Use</option>

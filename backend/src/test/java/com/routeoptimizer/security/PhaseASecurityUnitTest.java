@@ -14,17 +14,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
-import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -114,31 +111,32 @@ public class PhaseASecurityUnitTest {
 
         String ip = "10.0.0.99";
         int threadCount = 20;
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch startGate = new CountDownLatch(1);
-        CountDownLatch finishGate = new CountDownLatch(threadCount);
-        AtomicInteger rejectedCount = new AtomicInteger(0);
+        try (ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
+            CountDownLatch startGate = new CountDownLatch(1);
+            CountDownLatch finishGate = new CountDownLatch(threadCount);
+            AtomicInteger rejectedCount = new AtomicInteger(0);
 
-        for (int i = 0; i < threadCount; i++) {
-            executor.submit(() -> {
-                try {
-                    startGate.await();
-                    limiter.checkLoginIpRate(ip);
-                } catch (RateLimitExceededException ex) {
-                    rejectedCount.incrementAndGet();
-                } catch (Exception ignored) {
-                } finally {
-                    finishGate.countDown();
-                }
-            });
+            for (int i = 0; i < threadCount; i++) {
+                executor.submit(() -> {
+                    try {
+                        startGate.await();
+                        limiter.checkLoginIpRate(ip);
+                    } catch (RateLimitExceededException ex) {
+                        rejectedCount.incrementAndGet();
+                    } catch (Exception ignored) {
+                    } finally {
+                        finishGate.countDown();
+                    }
+                });
+            }
+
+            startGate.countDown();
+            finishGate.await(5, TimeUnit.SECONDS);
+            executor.shutdown();
+
+            // With threshold of 10, exactly 10 requests must pass and 10 must be rejected
+            assertThat(rejectedCount.get()).isEqualTo(10);
         }
-
-        startGate.countDown();
-        finishGate.await(5, TimeUnit.SECONDS);
-        executor.shutdown();
-
-        // With threshold of 10, exactly 10 requests must pass and 10 must be rejected
-        assertThat(rejectedCount.get()).isEqualTo(10);
     }
 
     @Test
@@ -163,6 +161,20 @@ public class PhaseASecurityUnitTest {
         limiter.checkLoginIdentifierRate(user);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static RestClient.ResponseSpec mockGeocodingCall(RestClient mockClient) {
+        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
+        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
+        Mockito.doReturn(uriSpec).when(mockClient).get();
+        Mockito.doReturn(uriSpec).when(uriSpec).uri(any(java.util.function.Function.class));
+        Mockito.doReturn(responseSpec).when(uriSpec).retrieve();
+        return responseSpec;
+    }
+
+    private static ParameterizedTypeReference<List<GeocodingService.NominatimResponse>> nominatimMatcher() {
+        return org.mockito.ArgumentMatchers.any();
+    }
+
     // =========================================================================
     // D2: ZERO SYNTHETIC COORDINATE FALLBACK TESTS
     // =========================================================================
@@ -171,13 +183,8 @@ public class PhaseASecurityUnitTest {
     @DisplayName("D2.1 - Upstream HTTP 429 throws RateLimitExceededException without fabricating coordinates")
     void upstream429ThrowsRateLimitExceededException() {
         RestClient mockClient = Mockito.mock(RestClient.class);
-        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
-        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
-
-        when(mockClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(uriSpec);
-        when(uriSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(any(ParameterizedTypeReference.class)))
+        RestClient.ResponseSpec responseSpec = mockGeocodingCall(mockClient);
+        when(responseSpec.body(nominatimMatcher()))
                 .thenThrow(new HttpClientErrorException(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests"));
 
         GeocodingService service = new GeocodingService(mockClient);
@@ -196,13 +203,8 @@ public class PhaseASecurityUnitTest {
     @DisplayName("D2.2 - Upstream HTTP 5xx / 403 throws GeocodingUpstreamException without fabricating coordinates")
     void upstreamHttpErrorThrowsGeocodingUpstreamException() {
         RestClient mockClient = Mockito.mock(RestClient.class);
-        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
-        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
-
-        when(mockClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(uriSpec);
-        when(uriSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(any(ParameterizedTypeReference.class)))
+        RestClient.ResponseSpec responseSpec = mockGeocodingCall(mockClient);
+        when(responseSpec.body(nominatimMatcher()))
                 .thenThrow(new HttpServerErrorException(HttpStatus.BAD_GATEWAY, "Bad Gateway"));
 
         GeocodingService service = new GeocodingService(mockClient);
@@ -220,13 +222,8 @@ public class PhaseASecurityUnitTest {
     @DisplayName("D2.3 - Upstream legitimate no-result throws ResourceNotFoundException (distinguishable from 502/429)")
     void legitimateNoResultThrowsResourceNotFoundException() {
         RestClient mockClient = Mockito.mock(RestClient.class);
-        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
-        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
-
-        when(mockClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(uriSpec);
-        when(uriSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(any(ParameterizedTypeReference.class)))
+        RestClient.ResponseSpec responseSpec = mockGeocodingCall(mockClient);
+        when(responseSpec.body(nominatimMatcher()))
                 .thenReturn(List.of()); // 200 OK with empty result list
 
         GeocodingService service = new GeocodingService(mockClient);
@@ -248,14 +245,9 @@ public class PhaseASecurityUnitTest {
     @DisplayName("D3.1 - Global waiter permits strictly bound concurrent callers and reject excess with 429")
     void globalWaiterLimitRejectsExcessCallers() throws Exception {
         RestClient mockClient = Mockito.mock(RestClient.class);
-        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
-        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
-
-        when(mockClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(uriSpec);
-        when(uriSpec.retrieve()).thenReturn(responseSpec);
+        RestClient.ResponseSpec responseSpec = mockGeocodingCall(mockClient);
         // Delay response so callers remain in waiting state
-        when(responseSpec.body(any(ParameterizedTypeReference.class)))
+        when(responseSpec.body(nominatimMatcher()))
                 .thenAnswer(inv -> {
                     Thread.sleep(1500);
                     return List.of();
@@ -265,32 +257,33 @@ public class PhaseASecurityUnitTest {
 
         try {
             int totalCallers = GeocodingService.MAX_TOTAL_WAITERS + 5;
-            ExecutorService executor = Executors.newFixedThreadPool(totalCallers);
-            CountDownLatch startGate = new CountDownLatch(1);
-            CountDownLatch finishGate = new CountDownLatch(totalCallers);
-            AtomicInteger rejectedCount = new AtomicInteger(0);
+            try (ExecutorService executor = Executors.newFixedThreadPool(totalCallers)) {
+                CountDownLatch startGate = new CountDownLatch(1);
+                CountDownLatch finishGate = new CountDownLatch(totalCallers);
+                AtomicInteger rejectedCount = new AtomicInteger(0);
 
-            for (int i = 0; i < totalCallers; i++) {
-                final int idx = i;
-                executor.submit(() -> {
-                    try {
-                        startGate.await();
-                        service.geocodeAddress("Address For Waiter Test " + idx);
-                    } catch (RateLimitExceededException ex) {
-                        rejectedCount.incrementAndGet();
-                    } catch (Exception ignored) {
-                    } finally {
-                        finishGate.countDown();
-                    }
-                });
+                for (int i = 0; i < totalCallers; i++) {
+                    final int idx = i;
+                    executor.submit(() -> {
+                        try {
+                            startGate.await();
+                            service.geocodeAddress("Address For Waiter Test " + idx);
+                        } catch (RateLimitExceededException ex) {
+                            rejectedCount.incrementAndGet();
+                        } catch (Exception ignored) {
+                        } finally {
+                            finishGate.countDown();
+                        }
+                    });
+                }
+
+                startGate.countDown();
+                finishGate.await(4, TimeUnit.SECONDS);
+                executor.shutdown();
+
+                // Excess callers must be rejected immediately
+                assertThat(rejectedCount.get()).isGreaterThanOrEqualTo(5);
             }
-
-            startGate.countDown();
-            finishGate.await(4, TimeUnit.SECONDS);
-            executor.shutdown();
-
-            // Excess callers must be rejected immediately
-            assertThat(rejectedCount.get()).isGreaterThanOrEqualTo(5);
         } finally {
             service.shutdown();
         }
@@ -300,13 +293,8 @@ public class PhaseASecurityUnitTest {
     @DisplayName("D3.2 - Work queue capacity (4) aligns with 5s timeout at 1 req/sec pacing")
     void workQueueCapacityBoundEnforced() throws Exception {
         RestClient mockClient = Mockito.mock(RestClient.class);
-        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
-        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
-
-        when(mockClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(uriSpec);
-        when(uriSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(any(ParameterizedTypeReference.class)))
+        RestClient.ResponseSpec responseSpec = mockGeocodingCall(mockClient);
+        when(responseSpec.body(nominatimMatcher()))
                 .thenAnswer(inv -> {
                     Thread.sleep(1200);
                     return List.of();
@@ -315,27 +303,28 @@ public class PhaseASecurityUnitTest {
         GeocodingService service = new GeocodingService(mockClient);
 
         try {
-            ExecutorService executor = Executors.newFixedThreadPool(8);
-            AtomicInteger queueRejected = new AtomicInteger(0);
+            try (ExecutorService executor = Executors.newFixedThreadPool(8)) {
+                AtomicInteger queueRejected = new AtomicInteger(0);
 
-            for (int i = 0; i < 8; i++) {
-                final int idx = i;
-                executor.submit(() -> {
-                    try {
-                        service.geocodeAddress("Queue Overflow Address " + idx);
-                    } catch (RateLimitExceededException ex) {
-                        if (ex.getMessage().contains("queue is full") || ex.getMessage().contains("busy")) {
-                            queueRejected.incrementAndGet();
+                for (int i = 0; i < 8; i++) {
+                    final int idx = i;
+                    executor.submit(() -> {
+                        try {
+                            service.geocodeAddress("Queue Overflow Address " + idx);
+                        } catch (RateLimitExceededException ex) {
+                            if (ex.getMessage().contains("queue is full") || ex.getMessage().contains("busy")) {
+                                queueRejected.incrementAndGet();
+                            }
+                        } catch (Exception ignored) {
                         }
-                    } catch (Exception ignored) {
-                    }
-                });
+                    });
+                }
+
+                executor.shutdown();
+                executor.awaitTermination(3, TimeUnit.SECONDS);
+
+                assertThat(queueRejected.get()).isGreaterThan(0);
             }
-
-            executor.shutdown();
-            executor.awaitTermination(3, TimeUnit.SECONDS);
-
-            assertThat(queueRejected.get()).isGreaterThan(0);
         } finally {
             service.shutdown();
         }
@@ -345,12 +334,7 @@ public class PhaseASecurityUnitTest {
     @DisplayName("D3.3 - In-flight coalescing shares outbound query across concurrent identical requests")
     void inFlightCoalescingSharesSingleOutboundCall() throws Exception {
         RestClient mockClient = Mockito.mock(RestClient.class);
-        RestClient.RequestHeadersUriSpec uriSpec = Mockito.mock(RestClient.RequestHeadersUriSpec.class);
-        RestClient.ResponseSpec responseSpec = Mockito.mock(RestClient.ResponseSpec.class);
-
-        when(mockClient.get()).thenReturn(uriSpec);
-        when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(uriSpec);
-        when(uriSpec.retrieve()).thenReturn(responseSpec);
+        mockGeocodingCall(mockClient);
 
         // Preload cache for clean deterministic verification
         GeocodingService service = new GeocodingService(mockClient);

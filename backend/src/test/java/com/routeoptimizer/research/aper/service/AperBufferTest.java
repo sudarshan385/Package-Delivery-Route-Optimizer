@@ -84,7 +84,7 @@ public class AperBufferTest {
         AperBuffer deterministicBuffer = new AperBuffer(properties, priorityCalculator, new Random(42));
         
         Transition t1 = createDummyTransition();
-        AperTransition a1 = deterministicBuffer.store(t1, 1.0, 0.0); // P=1
+        deterministicBuffer.store(t1, 1.0, 0.0); // P=1
         
         Transition t2 = createDummyTransition();
         AperTransition a2 = deterministicBuffer.store(t2, 100.0, 0.0); // P=100

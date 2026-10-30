@@ -7,7 +7,6 @@ import com.routeoptimizer.research.state.domain.RouteDecisionState;
 import com.routeoptimizer.research.state.service.StateRepresentationService;
 import com.routeoptimizer.research.training.domain.TrainingInput;
 import com.routeoptimizer.research.tsmtw.domain.CandidateRoute;
-import com.routeoptimizer.research.tsmtw.domain.TSMTWTask;
 
 import java.util.ArrayList;
 import java.util.HashSet;

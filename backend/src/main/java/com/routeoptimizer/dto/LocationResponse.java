@@ -30,9 +30,10 @@ public class LocationResponse {
         if (location == null) {
             return null;
         }
+        String cleanName = location.getName() != null ? location.getName().replaceAll("\\s+\\d{9,11}(\\.\\d+)?$", "").trim() : null;
         return LocationResponse.builder()
                 .id(location.getId())
-                .name(location.getName())
+                .name(cleanName)
                 .city(location.getCity())
                 .address(location.getAddress())
                 .latitude(location.getLatitude())

@@ -31,7 +31,7 @@ class MultiStopOptimizationAlgorithmTest {
 
     @BeforeEach
     void setUp() {
-        strategy = new MultiStopRouteOptimizationStrategy(null, null, null);
+        strategy = new MultiStopRouteOptimizationStrategy(null);
 
         hub = Location.builder().id(100L).name("Central Hub").latitude(12.9716).longitude(77.5946).build();
         loc1 = Location.builder().id(101L).name("Customer Stop 1").latitude(12.9800).longitude(77.6000).build();
@@ -145,7 +145,6 @@ class MultiStopOptimizationAlgorithmTest {
         // PathFinder where H->loc1 has low distance (5km) but congested duration (50min),
         // while H->loc2 has higher distance (10km) but free-flow duration (10min).
         MultiStopRouteOptimizationStrategy.PathFinder pathFinder = (from, to, crit) -> {
-            boolean isFastest = "FASTEST_ROUTE".equalsIgnoreCase(crit);
             double dist, time;
             if (from.getId().equals(100L) && to.getId().equals(101L)) {
                 dist = 5.0; time = 50.0;

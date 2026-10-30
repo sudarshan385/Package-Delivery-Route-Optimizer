@@ -19,9 +19,10 @@ public class VerifyDbStatsTest {
              Statement stmt = conn.createStatement()) {
              
             System.out.println("=== Database Identity: " + dbName + " ===");
-            ResultSet rs = stmt.executeQuery("SELECT current_database()");
-            if (rs.next()) {
-                System.out.println("Authoritative DB Name: " + rs.getString(1));
+            try (ResultSet rs = stmt.executeQuery("SELECT current_database()")) {
+                if (rs.next()) {
+                    System.out.println("Authoritative DB Name: " + rs.getString(1));
+                }
             }
             
             String[] tables = {
@@ -31,9 +32,10 @@ public class VerifyDbStatsTest {
             };
             for (String table : tables) {
                 try {
-                    ResultSet countRs = stmt.executeQuery("SELECT COUNT(*) FROM " + table);
-                    if (countRs.next()) {
-                        System.out.println("Table [" + table + "] row count: " + countRs.getInt(1));
+                    try (ResultSet countRs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                        if (countRs.next()) {
+                            System.out.println("Table [" + table + "] row count: " + countRs.getInt(1));
+                        }
                     }
                 } catch (Exception ex) {
                     System.out.println("Table " + table + " check failed: " + ex.getMessage());
@@ -41,9 +43,10 @@ public class VerifyDbStatsTest {
             }
             
             System.out.println("\n--- Flyway Schema Migrations ---");
-            ResultSet flyRs = stmt.executeQuery("SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank");
-            while (flyRs.next()) {
-                System.out.println("  V" + flyRs.getString("version") + ": " + flyRs.getString("description") + " (Success: " + flyRs.getBoolean("success") + ")");
+            try (ResultSet flyRs = stmt.executeQuery("SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank")) {
+                while (flyRs.next()) {
+                    System.out.println("  V" + flyRs.getString("version") + ": " + flyRs.getString("description") + " (Success: " + flyRs.getBoolean("success") + ")");
+                }
             }
             System.out.println();
         } catch (Exception e) {

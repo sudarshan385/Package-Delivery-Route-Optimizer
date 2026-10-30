@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.routeoptimizer.dto.RouteAlternativeOption;
 import com.routeoptimizer.dto.RoutingResponse;
-import com.routeoptimizer.exception.BadRequestException;
-import com.routeoptimizer.exception.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -214,7 +212,7 @@ public class RoutingService {
         return res;
     }
 
-    private double calculateHaversineKm(double lat1, double lon1, double lat2, double lon2) {
+    public static double calculateHaversineKm(double lat1, double lon1, double lat2, double lon2) {
         final int R = 6371;
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);
@@ -225,7 +223,7 @@ public class RoutingService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class OsrmResponse {
+    public static class OsrmResponse {
         private String code;
         private List<OsrmRoute> routes;
 
@@ -236,7 +234,7 @@ public class RoutingService {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private static class OsrmRoute {
+    public static class OsrmRoute {
         private Double distance;
         private Double duration;
         private JsonNode geometry;

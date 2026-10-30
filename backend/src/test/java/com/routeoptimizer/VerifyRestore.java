@@ -12,18 +12,20 @@ public class VerifyRestore {
              Statement stmt = conn.createStatement()) {
              
             System.out.println("=== Database Verification ===");
-            ResultSet rs = stmt.executeQuery("SELECT current_database()");
-            if (rs.next()) {
-                System.out.println("Connected DB Name: " + rs.getString(1));
+            try (ResultSet rs = stmt.executeQuery("SELECT current_database()")) {
+                if (rs.next()) {
+                    System.out.println("Connected DB Name: " + rs.getString(1));
+                }
             }
             
             System.out.println("\n=== Table Counts ===");
             String[] tables = {"flyway_schema_history", "locations", "route_edges", "location_edges", "drivers", "users"};
             for (String table : tables) {
                 try {
-                    ResultSet countRs = stmt.executeQuery("SELECT COUNT(*) FROM " + table);
-                    if (countRs.next()) {
-                        System.out.println(table + " count: " + countRs.getInt(1));
+                    try (ResultSet countRs = stmt.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                        if (countRs.next()) {
+                            System.out.println(table + " count: " + countRs.getInt(1));
+                        }
                     }
                 } catch (Exception ex) {
                     System.out.println(table + " count error: " + ex.getMessage());

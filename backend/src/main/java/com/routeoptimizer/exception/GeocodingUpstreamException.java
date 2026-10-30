@@ -10,6 +10,7 @@ import lombok.Getter;
  */
 @Getter
 public class GeocodingUpstreamException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
     private final int upstreamStatusCode;
 
     public GeocodingUpstreamException(String message, int upstreamStatusCode) {

@@ -7,8 +7,6 @@ import com.routeoptimizer.enums.AlgorithmType;
 import com.routeoptimizer.enums.StopType;
 import com.routeoptimizer.exception.BadRequestException;
 import com.routeoptimizer.exception.ResourceNotFoundException;
-import com.routeoptimizer.repository.LocationEdgeRepository;
-import com.routeoptimizer.repository.LocationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -26,8 +24,6 @@ import java.util.*;
 public class MultiStopRouteOptimizationStrategy {
 
     private final DijkstraRouteOptimizationStrategy dijkstraStrategy;
-    private final LocationRepository locationRepository;
-    private final LocationEdgeRepository locationEdgeRepository;
 
     @FunctionalInterface
     public interface PathFinder {

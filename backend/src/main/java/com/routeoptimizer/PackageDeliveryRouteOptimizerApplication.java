@@ -15,8 +15,10 @@ import java.io.IOException;
 @EnableSpringDataWebSupport(pageSerializationMode = EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO)
 public class PackageDeliveryRouteOptimizerApplication {
 
+    private static RandomAccessFile lockRaf;
     private static FileLock lock;
     private static FileChannel channel;
+    private static org.springframework.context.ConfigurableApplicationContext context;
 
     public static void main(String[] args) {
         try {
@@ -24,7 +26,8 @@ public class PackageDeliveryRouteOptimizerApplication {
             if (lockFile.getParentFile() != null) {
                 lockFile.getParentFile().mkdirs();
             }
-            channel = new RandomAccessFile(lockFile, "rw").getChannel();
+            lockRaf = new RandomAccessFile(lockFile, "rw");
+            channel = lockRaf.getChannel();
             lock = channel.tryLock();
             
             if (lock == null) {
@@ -33,11 +36,29 @@ public class PackageDeliveryRouteOptimizerApplication {
                 System.err.println("=====================================================");
                 System.exit(0);
             }
+
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    if (context != null && context.isRunning()) {
+                        context.close();
+                    }
+                    if (lock != null && lock.isValid()) {
+                        lock.release();
+                    }
+                    if (channel != null && channel.isOpen()) {
+                        channel.close();
+                    }
+                    if (lockRaf != null) {
+                        lockRaf.close();
+                    }
+                } catch (IOException ignored) {
+                }
+            }));
         } catch (IOException e) {
             System.err.println("Error acquiring instance lock: " + e.getMessage());
             System.exit(1);
         }
 
-        SpringApplication.run(PackageDeliveryRouteOptimizerApplication.class, args);
+        context = SpringApplication.run(PackageDeliveryRouteOptimizerApplication.class, args);
     }
 }

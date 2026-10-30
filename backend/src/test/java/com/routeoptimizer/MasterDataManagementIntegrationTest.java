@@ -47,19 +47,7 @@ class MasterDataManagementIntegrationTest {
     private DriverRepository driverRepository;
 
     @Autowired
-    private VehicleRepository vehicleRepository;
-
-    @Autowired
     private LocationRepository locationRepository;
-
-    @Autowired
-    private LocationEdgeRepository locationEdgeRepository;
-
-    @Autowired
-    private PackageRepository packageRepository;
-
-    @Autowired
-    private DeliveryRepository deliveryRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -86,7 +74,6 @@ class MasterDataManagementIntegrationTest {
 
     private String adminToken;
     private String driverToken;
-    private Long driverUserId;
     private Long driverProfileId;
 
     @BeforeEach
@@ -121,7 +108,6 @@ class MasterDataManagementIntegrationTest {
         driverUser.setActive(true);
         driverUser.setVersion(0L);
         User savedDriverUser = userRepository.save(driverUser);
-        driverUserId = savedDriverUser.getId();
         driverToken = jwtTokenProvider.generateTokenForUsername("driver_mdata");
 
         Driver driverProfile = Driver.builder()

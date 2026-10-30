@@ -60,6 +60,7 @@ export default function RouteOptimizer() {
   const [manifestError, setManifestError] = useState('');
   const [statusUpdatingId, setStatusUpdatingId] = useState(null);
   const [statusActionMessage, setStatusActionMessage] = useState('');
+  const [confirmingReturn, setConfirmingReturn] = useState(false);
 
   // --- LEGACY SINGLE ROUTE / POINT-TO-POINT STATE ---
   const [sourceId, setSourceId] = useState('');
@@ -94,8 +95,11 @@ export default function RouteOptimizer() {
         const deliveriesData = Array.isArray(dRes.data) ? dRes.data : dRes.data.content || [];
         setDeliveries(deliveriesData);
 
-        // Auto-select first Hub if available
-        const firstHub = locs.find(l => l.locationType === 'HUB');
+        // Auto-select first valid Hub if available
+        const firstHub = locs.find(l => {
+          const t = l.locationType?.toUpperCase();
+          return (t === 'HUB' || t === 'DEPOT') && !l.name?.toUpperCase().startsWith('PKG-') && l.active !== false;
+        });
         if (firstHub && !selectedHubId) {
           setSelectedHubId(String(firstHub.id));
           loadUnassignedDeliveries(firstHub.id);
@@ -300,7 +304,40 @@ export default function RouteOptimizer() {
     }
   };
 
+  const handleConfirmReturnToHub = async () => {
+    if (!driverManifest?.routeId) return;
+    setConfirmingReturn(true);
+    setStatusActionMessage('');
+    setManifestError('');
+    try {
+      await api.post(`/deliveries/routes/${driverManifest.routeId}/confirm-return`);
+      setStatusActionMessage('Vehicle safely returned to Central Hub! Driver and vehicle released to AVAILABLE.');
+      loadDriverManifest();
+    } catch (err) {
+      setManifestError(parseApiError(err, 'Failed to confirm return to hub'));
+    } finally {
+      setConfirmingReturn(false);
+    }
+  };
+
   // --- POINT-TO-POINT LEGACY SOLVER METHODS ---
+  const handleSourceChange = (val) => {
+    setSourceId(val);
+    if (val && destId && String(val) === String(destId)) {
+      setSingleError('Source and destination locations must be distinct. Please select different origin and destination locations.');
+    } else if (singleError === 'Source and destination locations must be distinct. Please select different origin and destination locations.') {
+      setSingleError('');
+    }
+  };
+
+  const handleDestChange = (val) => {
+    setDestId(val);
+    if (val && sourceId && String(val) === String(sourceId)) {
+      setSingleError('Source and destination locations must be distinct. Please select different origin and destination locations.');
+    } else if (singleError === 'Source and destination locations must be distinct. Please select different origin and destination locations.') {
+      setSingleError('');
+    }
+  };
   const handleSingleOptimize = async () => {
     if (!deliveryId && (!sourceId || !destId)) {
       setSingleError('Please select both source and destination');
@@ -396,12 +433,54 @@ export default function RouteOptimizer() {
               subtitle={`Origin: ${driverManifest.hubName || 'Central Hub'} • Vehicle: ${driverManifest.vehicleRegistration || 'Assigned Vehicle'}`}
               actions={
                 <StatusBadge 
-                  status={driverManifest.isCompleted ? 'COMPLETED' : 'IN_PROGRESS'} 
-                  label={driverManifest.isCompleted ? 'ALL STOPS DELIVERED' : 'IN TRANSIT'} 
+                  status={driverManifest.isCompleted ? 'COMPLETED' : (driverManifest.canConfirmReturn || driverManifest.routeStatus === 'RETURNING_TO_HUB') ? 'IN_PROGRESS' : 'IN_PROGRESS'} 
+                  label={driverManifest.isCompleted ? 'TOUR COMPLETED' : (driverManifest.canConfirmReturn || driverManifest.routeStatus === 'RETURNING_TO_HUB') ? 'RETURNING TO HUB' : 'IN TRANSIT'} 
                 />
               }
               className="mb-6"
             >
+              {driverManifest.canConfirmReturn && (
+                <div 
+                  style={{ 
+                    marginBottom: 16, 
+                    padding: '16px 20px', 
+                    borderRadius: 'var(--radius-card)', 
+                    backgroundColor: 'rgba(99, 102, 241, 0.12)', 
+                    border: '2px solid #6366f1', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    gap: 16,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Truck size={28} color="#6366f1" />
+                    <div>
+                      <strong style={{ color: '#6366f1', fontSize: '15px' }}>All Deliveries Completed • Returning to Dispatch Hub</strong>
+                      <div style={{ fontSize: '13px', color: 'var(--theme-text)', marginTop: 2 }}>
+                        Return Hub: <strong>{driverManifest.hubName || 'Central Hub'}</strong>
+                        {driverManifest.returnLegDistance != null && (
+                          <span> • Return Leg: <strong>{driverManifest.returnLegDistance.toFixed(1)} km</strong> ({driverManifest.returnLegDuration?.toFixed(0)} min)</span>
+                        )}
+                        <br />
+                        Driver remains <strong>ON_DELIVERY</strong> and vehicle remains <strong>IN_USE</strong> until return arrival is confirmed.
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    icon={CheckCircle2}
+                    onClick={handleConfirmReturnToHub}
+                    loading={confirmingReturn}
+                    style={{ backgroundColor: '#6366f1', borderColor: '#6366f1' }}
+                    id="confirm-return-to-hub-btn"
+                  >
+                    Confirm Return to Hub
+                  </Button>
+                </div>
+              )}
+
               {driverManifest.isCompleted && (
                 <div 
                   style={{ 
@@ -419,7 +498,7 @@ export default function RouteOptimizer() {
                   <div>
                     <strong style={{ color: '#10b981', fontSize: '15px' }}>Tour Completed Successfully!</strong>
                     <div style={{ fontSize: '13px', color: 'var(--theme-text)', marginTop: 2 }}>
-                      All stops in this manifest have been completed. Driver and vehicle have been automatically released to AVAILABLE.
+                      All stops in this manifest have been completed and return to hub confirmed. Driver and vehicle have been automatically released to AVAILABLE.
                     </div>
                   </div>
                 </div>
@@ -669,6 +748,36 @@ export default function RouteOptimizer() {
                           </div>
                         </div>
                       )}
+
+                      {isReturnHub && driverManifest.canConfirmReturn && (
+                        <div 
+                          style={{ 
+                            padding: '12px 14px', 
+                            borderRadius: 'var(--radius-input)', 
+                            backgroundColor: 'var(--theme-surface)', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            flexWrap: 'wrap', 
+                            gap: 12 
+                          }}
+                        >
+                          <span style={{ fontSize: 13, color: 'var(--theme-text)' }}>
+                            All customer stops completed. Confirm arrival at dispatch hub to complete tour and release driver & vehicle.
+                          </span>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon={CheckCircle2}
+                            onClick={handleConfirmReturnToHub}
+                            loading={confirmingReturn}
+                            style={{ backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' }}
+                            id="confirm-return-stop-btn"
+                          >
+                            Confirm Return to Hub
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -683,7 +792,59 @@ export default function RouteOptimizer() {
   // ==========================================
   // ADMIN & DISPATCH VIEW
   // ==========================================
-  const hubLocations = locations.filter(l => l.locationType === 'HUB');
+  // Clean location display name: strip trailing epoch timestamps e.g. "Admin Node 1 1791636709.2307775" -> "Admin Node 1"
+  const cleanLocationName = (name) => {
+    if (!name) return '';
+    return name.replace(/\s+\d{9,12}(\.\d+)?$/, '').trim();
+  };
+
+  // Valid, deduplicated central hubs (strictly HUB/DEPOT types, no customer packages, deduplicated by coordinates)
+  const hubLocations = (() => {
+    const list = [];
+    const seen = new Set();
+    for (const l of locations) {
+      if (!l || l.active === false) continue;
+      const type = l.locationType?.toUpperCase();
+      const isHub = (type === 'HUB' || type === 'DEPOT') && !l.name?.toUpperCase().startsWith('PKG-');
+      if (isHub) {
+        const lat = Number(l.latitude);
+        const lon = Number(l.longitude);
+        const key = !isNaN(lat) && !isNaN(lon) ? `${lat.toFixed(4)},${lon.toFixed(4)}` : l.name;
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push({
+            ...l,
+            cleanName: cleanLocationName(l.name)
+          });
+        }
+      }
+    }
+    return list;
+  })();
+
+  // All valid user-entered routable locations (Central hubs, customer pickup addresses, customer delivery destinations)
+  const routableLocations = (() => {
+    const list = [];
+    const seen = new Set();
+    for (const l of locations) {
+      if (!l || l.active === false) continue;
+      const lat = Number(l.latitude);
+      const lon = Number(l.longitude);
+      const key = !isNaN(lat) && !isNaN(lon) ? `${lat.toFixed(4)},${lon.toFixed(4)}` : `${l.id}-${l.name}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        const cleaned = cleanLocationName(l.name);
+        const typeBadge = l.locationType ? `[${l.locationType}]` : '';
+        const addressText = l.address ? ` — ${l.address}` : '';
+        list.push({
+          ...l,
+          cleanName: cleaned,
+          displayLabel: `${cleaned} ${typeBadge}${addressText}`.trim()
+        });
+      }
+    }
+    return list;
+  })();
 
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
@@ -770,9 +931,9 @@ export default function RouteOptimizer() {
                 helperText="All deliveries on this tour will depart from this distribution center."
               >
                 <option value="">Select a Central Hub</option>
-                {(hubLocations.length > 0 ? hubLocations : locations).map((l) => (
+                {hubLocations.map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.name} {l.locationType ? `(${l.locationType})` : ''} — {l.address || ''}
+                    {l.cleanName || l.name} {l.locationType ? `(${l.locationType})` : ''} {l.address ? `— ${l.address}` : ''}
                   </option>
                 ))}
               </Select>
@@ -1314,14 +1475,14 @@ export default function RouteOptimizer() {
                     label="Source / Origin Node"
                     id="route-source"
                     value={sourceId}
-                    onChange={(e) => setSourceId(e.target.value)}
+                    onChange={(e) => handleSourceChange(e.target.value)}
                     required={!deliveryId}
                     disabled={!!deliveryId}
                   >
                     <option value="">Select origin location</option>
-                    {locations.map((l) => (
+                    {routableLocations.map((l) => (
                       <option key={l.id} value={l.id}>
-                        {l.name} {l.locationType ? `(${l.locationType})` : ''}
+                        {l.displayLabel || `${l.cleanName || l.name} ${l.locationType ? `(${l.locationType})` : ''}`}
                       </option>
                     ))}
                   </Select>
@@ -1330,14 +1491,14 @@ export default function RouteOptimizer() {
                     label="Destination Node"
                     id="route-destination"
                     value={destId}
-                    onChange={(e) => setDestId(e.target.value)}
+                    onChange={(e) => handleDestChange(e.target.value)}
                     required={!deliveryId}
                     disabled={!!deliveryId}
                   >
                     <option value="">Select destination location</option>
-                    {locations.map((l) => (
+                    {routableLocations.map((l) => (
                       <option key={l.id} value={l.id}>
-                        {l.name} {l.locationType ? `(${l.locationType})` : ''}
+                        {l.displayLabel || `${l.cleanName || l.name} ${l.locationType ? `(${l.locationType})` : ''}`}
                       </option>
                     ))}
                   </Select>
@@ -1389,7 +1550,7 @@ export default function RouteOptimizer() {
                     variant="primary"
                     icon={Navigation}
                     onClick={handleSingleOptimize}
-                    disabled={singleLoading}
+                    disabled={singleLoading || (!deliveryId && (!sourceId || !destId || String(sourceId) === String(destId)))}
                     loading={singleLoading}
                     id="optimize-single-btn"
                   >

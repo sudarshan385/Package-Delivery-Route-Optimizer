@@ -71,6 +71,9 @@ if (-not $env:DEV_DB_PASSWORD) {
 if (-not $env:JWT_SECRET) {
     $env:JWT_SECRET = "dev-suite-dedicated-hmac-sha256-signing-key-min-32-bytes"
 }
+if (-not $env:SPRING_PROFILES_ACTIVE) {
+    $env:SPRING_PROFILES_ACTIVE = "dev"
+}
 
 # Strict validation of JWT_SECRET
 $forbiddenHex = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"

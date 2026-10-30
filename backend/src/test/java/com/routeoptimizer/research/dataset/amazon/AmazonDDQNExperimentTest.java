@@ -32,7 +32,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,7 +52,7 @@ class AmazonDDQNExperimentTest {
     @Autowired
     private StateRepresentationService stateRepresentationService;
 
-    @org.springframework.boot.test.mock.mockito.SpyBean
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     private DualRewardService rewardService;
 
     private java.util.concurrent.atomic.AtomicInteger syncTargetNetworkCounter = new java.util.concurrent.atomic.AtomicInteger(0);
@@ -201,15 +200,15 @@ class AmazonDDQNExperimentTest {
         assertTrue(syncTargetNetworkCounter.get() > 0, "Target network synchronization did not occur");
         assertTrue(aperSampleCounter.get() > 0, "APER sampling did not occur");
 
-        org.mockito.ArgumentCaptor<List> predictedCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
-        org.mockito.ArgumentCaptor<List> referenceCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.ArgumentCaptor<List<Long>> predictedCaptor = org.mockito.ArgumentCaptor.captor();
+        org.mockito.ArgumentCaptor<List<Long>> referenceCaptor = org.mockito.ArgumentCaptor.captor();
         org.mockito.Mockito.verify(rewardService, org.mockito.Mockito.atLeastOnce())
                 .calculateReward(predictedCaptor.capture(), referenceCaptor.capture());
         
-        List<List> references = referenceCaptor.getAllValues();
+        List<List<Long>> references = referenceCaptor.getAllValues();
         assertFalse(references.isEmpty());
         boolean matchFound = false;
-        for (List ref : references) {
+        for (List<Long> ref : references) {
             for (TrainingInput t : test) {
                 if (t.getReferenceRoute() != null && t.getReferenceRoute().equals(ref)) {
                     matchFound = true;

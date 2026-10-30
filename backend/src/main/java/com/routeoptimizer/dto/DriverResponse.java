@@ -22,6 +22,7 @@ public class DriverResponse {
     private String phone;
     private String licenseNumber;
     private DriverStatus status;
+    private Boolean inActiveDelivery;
     private Boolean active;
     private Long version;
     private OffsetDateTime createdAt;
@@ -31,6 +32,7 @@ public class DriverResponse {
         if (driver == null) {
             return null;
         }
+        boolean activeDel = driver.getStatus() == DriverStatus.ON_DELIVERY;
         return DriverResponse.builder()
                 .id(driver.getId())
                 .userId(driver.getUser() != null ? driver.getUser().getId() : null)
@@ -39,6 +41,7 @@ public class DriverResponse {
                 .phone(driver.getPhone())
                 .licenseNumber(driver.getLicenseNumber())
                 .status(driver.getStatus())
+                .inActiveDelivery(activeDel)
                 .active(driver.getActive())
                 .version(driver.getVersion())
                 .createdAt(driver.getCreatedAt())

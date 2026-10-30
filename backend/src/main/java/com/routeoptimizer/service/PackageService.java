@@ -28,9 +28,13 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.UUID;
-import com.routeoptimizer.service.GeocodingService;
+import java.util.Comparator;
 import com.routeoptimizer.dto.GeocodeResponse;
-
+import com.routeoptimizer.dto.OptimizationRequest;
+import com.routeoptimizer.optimizer.DijkstraRouteOptimizationStrategy;
+import com.routeoptimizer.optimizer.OptimizationResult;
+import com.routeoptimizer.entity.LocationEdge;
+import com.routeoptimizer.repository.LocationEdgeRepository;
 import com.routeoptimizer.enums.FulfillmentMode;
 
 @Service
@@ -42,6 +46,166 @@ public class PackageService {
     private final DeliveryRepository deliveryRepository;
     private final UserRepository userRepository;
     private final GeocodingService geocodingService;
+    private final DijkstraRouteOptimizationStrategy dijkstraStrategy;
+    private final LocationEdgeRepository locationEdgeRepository;
+    private final RoutingService routingService;
+
+    public record NearestHubResult(Location hub, double distanceKm) {}
+
+    public void ensureLocationConnectedToGraph(Location loc) {
+        if (loc == null || loc.getLatitude() == null || loc.getLongitude() == null) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(loc.getActive())) {
+            loc.setActive(true);
+            locationRepository.save(loc);
+        }
+
+        List<LocationEdge> existingEdges = locationEdgeRepository.findBySourceLocationIdAndActiveTrue(loc.getId());
+        if (existingEdges.size() >= 2) {
+            return;
+        }
+
+        List<Location> hubs = locationRepository.findAll().stream()
+                .filter(l -> Boolean.TRUE.equals(l.getActive()) &&
+                        l.getLatitude() != null && l.getLongitude() != null &&
+                        !l.getId().equals(loc.getId()) &&
+                        (l.getLocationType() != null &&
+                                (l.getLocationType().equalsIgnoreCase("HUB") ||
+                                 l.getLocationType().equalsIgnoreCase("DEPOT") ||
+                                 l.getLocationType().equalsIgnoreCase("WAREHOUSE"))))
+                .sorted(Comparator.comparingDouble(h ->
+                        RoutingService.calculateHaversineKm(loc.getLatitude(), loc.getLongitude(), h.getLatitude(), h.getLongitude())))
+                .limit(3)
+                .toList();
+
+        for (Location hub : hubs) {
+            double havDist = RoutingService.calculateHaversineKm(loc.getLatitude(), loc.getLongitude(), hub.getLatitude(), hub.getLongitude());
+            if (havDist <= 0.001) {
+                continue;
+            }
+            connectBidirectionalEdge(hub, loc);
+        }
+    }
+
+    private void connectBidirectionalEdge(Location a, Location b) {
+        if (a == null || b == null || a.getId().equals(b.getId())) {
+            return;
+        }
+        double havDist = RoutingService.calculateHaversineKm(a.getLatitude(), a.getLongitude(), b.getLatitude(), b.getLongitude());
+        if (havDist <= 0.001) {
+            return;
+        }
+        try {
+            if (!locationEdgeRepository.existsBySourceLocationIdAndDestinationLocationId(a.getId(), b.getId())) {
+                var routeAB = routingService.calculateRoute(a.getLatitude(), a.getLongitude(), b.getLatitude(), b.getLongitude());
+                double dist = routeAB != null ? routeAB.getDistanceKm() : 0.0;
+                if (dist > 0.001) {
+                    LocationEdge edgeAB = LocationEdge.builder()
+                            .sourceLocation(a)
+                            .destinationLocation(b)
+                            .distance(dist)
+                            .estimatedTime(Math.max(routeAB.getDurationMin(), 0.1))
+                            .geometryGeojson(routeAB.getGeometryGeoJson())
+                            .build();
+                    edgeAB.setActive(true);
+                    edgeAB.setVersion(0L);
+                    locationEdgeRepository.save(edgeAB);
+                }
+            }
+            if (!locationEdgeRepository.existsBySourceLocationIdAndDestinationLocationId(b.getId(), a.getId())) {
+                var routeBA = routingService.calculateRoute(b.getLatitude(), b.getLongitude(), a.getLatitude(), a.getLongitude());
+                double dist = routeBA != null ? routeBA.getDistanceKm() : 0.0;
+                if (dist > 0.001) {
+                    LocationEdge edgeBA = LocationEdge.builder()
+                            .sourceLocation(b)
+                            .destinationLocation(a)
+                            .distance(dist)
+                            .estimatedTime(Math.max(routeBA.getDurationMin(), 0.1))
+                            .geometryGeojson(routeBA.getGeometryGeoJson())
+                            .build();
+                    edgeBA.setActive(true);
+                    edgeBA.setVersion(0L);
+                    locationEdgeRepository.save(edgeBA);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    public NearestHubResult calculateNearestReachableHub(Location destination) {
+        if (destination == null || destination.getLatitude() == null || destination.getLongitude() == null) {
+            return null;
+        }
+
+        List<Location> candidateHubs = locationRepository.findAll().stream()
+                .filter(l -> Boolean.TRUE.equals(l.getActive()) &&
+                        l.getLatitude() != null && l.getLongitude() != null &&
+                        (l.getLocationType() != null &&
+                                (l.getLocationType().equalsIgnoreCase("HUB") ||
+                                 l.getLocationType().equalsIgnoreCase("DEPOT") ||
+                                 l.getLocationType().equalsIgnoreCase("WAREHOUSE"))))
+                .sorted(Comparator.comparingDouble(h ->
+                        RoutingService.calculateHaversineKm(destination.getLatitude(), destination.getLongitude(), h.getLatitude(), h.getLongitude())))
+                .toList();
+
+        if (candidateHubs.isEmpty()) {
+            return null;
+        }
+
+        // Direct collocation check: if destination is at or adjacent to a hub, return immediately
+        for (Location hub : candidateHubs) {
+            if (hub.getId().equals(destination.getId()) ||
+                    RoutingService.calculateHaversineKm(destination.getLatitude(), destination.getLongitude(), hub.getLatitude(), hub.getLongitude()) <= 0.001) {
+                return new NearestHubResult(hub, 0.0);
+            }
+        }
+
+        ensureLocationConnectedToGraph(destination);
+
+        Location bestHub = null;
+        double minDistance = Double.MAX_VALUE;
+
+        for (Location hub : candidateHubs) {
+            try {
+                OptimizationRequest req = OptimizationRequest.builder()
+                        .startLocationId(hub.getId())
+                        .destinationLocationId(destination.getId())
+                        .criterion("SHORTEST_DISTANCE")
+                        .build();
+                OptimizationResult result = dijkstraStrategy.optimize(req);
+                if (result != null && result.isPathExists() && result.getTotalDistance() < minDistance) {
+                    minDistance = result.getTotalDistance();
+                    bestHub = hub;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (bestHub != null && minDistance < 1e7) {
+            return new NearestHubResult(bestHub, Math.round(minDistance * 10.0) / 10.0);
+        }
+        return null;
+    }
+
+    private Package backfillNearestHubIfMissing(Package pkg) {
+        if (pkg != null && pkg.getNearestHub() == null && pkg.getDestinationLocation() != null) {
+            try {
+                NearestHubResult nearest = calculateNearestReachableHub(pkg.getDestinationLocation());
+                if (nearest != null) {
+                    pkg.setNearestHub(nearest.hub());
+                    pkg.setNearestHubDistance(nearest.distanceKm());
+                    try {
+                        return packageRepository.save(pkg);
+                    } catch (Exception ignored) {
+                        return pkg;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return pkg;
+    }
 
     private void validatePhoneNumber(String phone, String fieldName) {
         if (StringUtils.hasText(phone)) {
@@ -152,10 +316,11 @@ public class PackageService {
                                 .longitude(deliveryGeo.getLongitude())
                                 .locationType("CUSTOMER")
                                 .build();
-                        destination.setActive(false);
+                        destination.setActive(true);
                         destination.setVersion(0L);
                         destination = locationRepository.save(destination);
                     }
+                    ensureLocationConnectedToGraph(destination);
                 } catch (com.routeoptimizer.exception.RateLimitExceededException |
                          com.routeoptimizer.exception.GeocodingUpstreamException e) {
                     throw e;
@@ -241,10 +406,11 @@ public class PackageService {
                                 .longitude(pickupGeo.getLongitude())
                                 .locationType("CUSTOMER")
                                 .build();
-                        source.setActive(false);
+                        source.setActive(true);
                         source.setVersion(0L);
                         source = locationRepository.save(source);
                     }
+                    ensureLocationConnectedToGraph(source);
                 } catch (com.routeoptimizer.exception.RateLimitExceededException |
                          com.routeoptimizer.exception.GeocodingUpstreamException e) {
                     throw e;
@@ -265,10 +431,11 @@ public class PackageService {
                                 .longitude(deliveryGeo.getLongitude())
                                 .locationType("CUSTOMER")
                                 .build();
-                        destination.setActive(false);
+                        destination.setActive(true);
                         destination.setVersion(0L);
                         destination = locationRepository.save(destination);
                     }
+                    ensureLocationConnectedToGraph(destination);
                 } catch (com.routeoptimizer.exception.RateLimitExceededException |
                          com.routeoptimizer.exception.GeocodingUpstreamException e) {
                     throw e;
@@ -277,6 +444,8 @@ public class PackageService {
                 }
             }
         }
+
+        NearestHubResult nearestRecommendation = calculateNearestReachableHub(destination);
 
         Package pkg = Package.builder()
                 .trackingNumber(trackingNumber)
@@ -289,6 +458,8 @@ public class PackageService {
                 .deliveryLocation(trimmedDelivery)
                 .sourceLocation(source)
                 .destinationLocation(destination)
+                .nearestHub(nearestRecommendation != null ? nearestRecommendation.hub() : null)
+                .nearestHubDistance(nearestRecommendation != null ? nearestRecommendation.distanceKm() : null)
                 .weight(request.getWeight())
                 .priority(request.getPriority() != null ? request.getPriority() : Priority.MEDIUM)
                 .status(PackageStatus.PENDING)
@@ -323,7 +494,7 @@ public class PackageService {
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'DRIVER', 'USER')")
-    @Transactional(readOnly = true)
+    @Transactional
     public PackageResponse getPackageById(Long id) {
         Package pkg = packageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Package not found with id: " + id));
@@ -338,11 +509,12 @@ public class PackageService {
             }
         }
 
+        pkg = backfillNearestHubIfMissing(pkg);
         return PackageResponse.fromEntity(pkg);
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'DRIVER', 'USER')")
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<PackageResponse> getAllPackages(PackageStatus status, Priority priority, Boolean active, Pageable pageable) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         User currentUser = resolveAuthenticatedUser();
@@ -379,7 +551,7 @@ public class PackageService {
             }
         }
 
-        return page.map(PackageResponse::fromEntity);
+        return page.map(this::backfillNearestHubIfMissing).map(PackageResponse::fromEntity);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -455,6 +627,15 @@ public class PackageService {
 
                 pkg.setSourceLocation(source);
                 pkg.setDestinationLocation(destination);
+            }
+
+            if (pkg.getDestinationLocation() != null) {
+                ensureLocationConnectedToGraph(pkg.getDestinationLocation());
+                NearestHubResult nearest = calculateNearestReachableHub(pkg.getDestinationLocation());
+                if (nearest != null) {
+                    pkg.setNearestHub(nearest.hub());
+                    pkg.setNearestHubDistance(nearest.distanceKm());
+                }
             }
         }
 

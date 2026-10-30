@@ -3,7 +3,6 @@ package com.routeoptimizer.research.api.dto;
 import com.routeoptimizer.research.tsmtw.domain.CandidateRoute;
 import lombok.Builder;
 import lombok.Data;
-import java.util.List;
 
 @Data
 @Builder

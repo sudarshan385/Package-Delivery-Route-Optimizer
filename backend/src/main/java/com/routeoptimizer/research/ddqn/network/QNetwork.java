@@ -2,7 +2,6 @@ package com.routeoptimizer.research.ddqn.network;
 
 import com.routeoptimizer.research.state.domain.RouteAction;
 import com.routeoptimizer.research.state.domain.RouteDecisionState;
-import java.util.List;
 
 public interface QNetwork {
     /**

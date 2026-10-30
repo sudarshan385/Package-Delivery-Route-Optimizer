@@ -92,7 +92,6 @@ public class ShipmentService {
         String hubSelectionBasis = null;
         Double leg1DistanceKm = null;
         Double leg1DurationMin = null;
-        String leg1Geometry = null;
 
         // Efficient bounded evaluation: evaluate top 3 nearest candidates by road routing
         int evalLimit = Math.min(3, activeHubs.size());
@@ -107,7 +106,6 @@ public class ShipmentService {
                     selectedHub = candidate;
                     leg1DistanceKm = route.getDistanceKm();
                     leg1DurationMin = route.getDurationMin();
-                    leg1Geometry = route.getGeometryGeoJson();
                     hubSelectionBasis = String.format("Nearest reachable service hub by road: %.1f km (%.1f min)",
                             route.getDistanceKm(), route.getDurationMin());
                     break;
@@ -132,7 +130,6 @@ public class ShipmentService {
         // 2. Compute Leg 2 road metrics (Hub -> Destination)
         Double leg2DistanceKm = null;
         Double leg2DurationMin = null;
-        String leg2Geometry = null;
         try {
             RoutingResponse route2 = routingService.calculateRoute(
                     selectedHub.getLatitude(), selectedHub.getLongitude(),
@@ -141,7 +138,6 @@ public class ShipmentService {
             if (route2 != null) {
                 leg2DistanceKm = route2.getDistanceKm();
                 leg2DurationMin = route2.getDurationMin();
-                leg2Geometry = route2.getGeometryGeoJson();
             }
         } catch (Exception ex) {
             log.warn("Leg 2 road routing failed: {}", ex.getMessage());
@@ -668,7 +664,7 @@ public class ShipmentService {
         }
 
         return deliveries.stream()
-                .sorted(Comparator.comparing(Delivery::getCreatedAt).reversed())
+                .sorted(Comparator.comparing((Delivery d) -> d.getCreatedAt() != null ? d.getCreatedAt() : OffsetDateTime.MIN).reversed())
                 .map(this::mapDeliveryToResponse)
                 .toList();
     }
@@ -698,6 +694,15 @@ public class ShipmentService {
                 .map(ShipmentEventResponse::fromEntity)
                 .toList();
 
+        String driverName = null;
+        if (d.getDriver() != null) {
+            if (d.getDriver().getName() != null) {
+                driverName = d.getDriver().getName();
+            } else if (d.getDriver().getUser() != null) {
+                driverName = d.getDriver().getUser().getFullName();
+            }
+        }
+
         return DeliveryResponse.builder()
                 .id(d.getId())
                 .packageId(d.getPackage() != null ? d.getPackage().getId() : null)
@@ -707,7 +712,7 @@ public class ShipmentService {
                 .destinationLocationId(d.getDestinationLocation() != null ? d.getDestinationLocation().getId() : null)
                 .destinationLocationName(d.getDestinationLocation() != null ? d.getDestinationLocation().getName() : null)
                 .driverId(d.getDriver() != null ? d.getDriver().getId() : null)
-                .driverName(d.getDriver() != null && d.getDriver().getUser() != null ? d.getDriver().getUser().getFullName() : null)
+                .driverName(driverName)
                 .vehicleId(d.getVehicle() != null ? d.getVehicle().getId() : null)
                 .vehicleRegistrationNumber(d.getVehicle() != null ? d.getVehicle().getRegistrationNumber() : null)
                 .status(d.getStatus())

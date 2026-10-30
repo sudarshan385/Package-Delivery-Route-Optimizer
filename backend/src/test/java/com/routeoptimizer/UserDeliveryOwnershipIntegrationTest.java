@@ -1,6 +1,5 @@
 package com.routeoptimizer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.routeoptimizer.entity.Location;
 import com.routeoptimizer.entity.Package;
 import com.routeoptimizer.entity.Route;
@@ -65,7 +64,8 @@ public class UserDeliveryOwnershipIntegrationTest {
 
     @BeforeEach
     public void setup() {
-        TestDatabaseGuard.verifyTestDatabase(jdbcTemplate);
+        
+        com.routeoptimizer.TestDatabaseGuard.verifyTestDatabase(jdbcTemplate);
         jdbcTemplate.execute("DELETE FROM shipment_events");
         jdbcTemplate.execute("DELETE FROM delivery_legs");
         jdbcTemplate.execute("DELETE FROM delivery_status_history");

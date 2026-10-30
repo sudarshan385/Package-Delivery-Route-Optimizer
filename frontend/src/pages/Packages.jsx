@@ -79,14 +79,26 @@ export default function Packages() {
   };
 
   const fetchHubLocations = () => {
+    api.get('/locations/hubs')
+      .then((res) => {
+        const hubs = Array.isArray(res.data) ? res.data : [];
+        if (hubs.length > 0) {
+          setHubLocations(hubs);
+        } else {
+          fallbackHubLocations();
+        }
+      })
+      .catch(() => {
+        fallbackHubLocations();
+      });
+  };
+
+  const fallbackHubLocations = () => {
     api.get('/locations', { params: { size: 200 } })
       .then((res) => {
         const all = res.data.content || [];
         const hubs = all.filter(
-          (l) => l.active && (
-            !l.locationType || 
-            ['HUB', 'DEPOT', 'WAREHOUSE'].includes(l.locationType.toUpperCase())
-          )
+          (l) => l.active && l.locationType && ['HUB', 'DEPOT', 'WAREHOUSE'].includes(l.locationType.toUpperCase())
         );
         setHubLocations(hubs);
       })
@@ -485,7 +497,7 @@ export default function Packages() {
       {/* Package List / Table */}
       {loading ? (
         <LoadingState message="Loading package records..." />
-      ) : filtered.length === 0 ? (
+      ) : fetchError ? null : filtered.length === 0 ? (
         <Card>
           <EmptyState
             icon={Package}
@@ -508,6 +520,7 @@ export default function Packages() {
                 <TableHead>Receiver</TableHead>
                 <TableHead>Pickup Location</TableHead>
                 <TableHead>Delivery Location</TableHead>
+                <TableHead>Nearest Hub</TableHead>
                 <TableHead>Weight</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Status</TableHead>
@@ -580,6 +593,24 @@ export default function Packages() {
                   </TableCell>
                   <TableCell>{pkg.pickupLocation || pkg.sourceLocationName || '—'}</TableCell>
                   <TableCell>{pkg.deliveryLocation || pkg.destinationLocationName || '—'}</TableCell>
+                  <TableCell>
+                    {pkg.nearestHubName ? (
+                      <div>
+                        <span style={{ fontWeight: 600, color: 'var(--theme-text)' }}>
+                          {pkg.nearestHubName}
+                        </span>
+                        {pkg.nearestHubDistance != null && (
+                          <span style={{ fontSize: 11, color: 'var(--theme-muted)', display: 'block' }}>
+                            {pkg.nearestHubDistance.toFixed(1)} km
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ color: 'var(--theme-muted)', fontStyle: 'italic', fontSize: 12 }}>
+                        No reachable hub
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>{pkg.weight != null ? `${pkg.weight} kg` : '—'}</TableCell>
                   <TableCell>
                     <StatusBadge status={pkg.priority} />

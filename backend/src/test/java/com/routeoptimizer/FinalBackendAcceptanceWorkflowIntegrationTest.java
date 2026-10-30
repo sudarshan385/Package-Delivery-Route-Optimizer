@@ -49,19 +49,7 @@ public class FinalBackendAcceptanceWorkflowIntegrationTest {
     private VehicleRepository vehicleRepository;
 
     @Autowired
-    private LocationRepository locationRepository;
-
-    @Autowired
-    private LocationEdgeRepository locationEdgeRepository;
-
-    @Autowired
     private PackageRepository packageRepository;
-
-    @Autowired
-    private DeliveryRepository deliveryRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;

@@ -22,7 +22,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -116,9 +115,10 @@ public class DriverService {
         }
 
         if (request.getStatus() != null && request.getStatus() != driver.getStatus()) {
-            boolean hasActiveDelivery = deliveryRepository.existsByDriverIdAndStatusInAndActiveTrue(
-                    id, List.of(DeliveryStatus.ASSIGNED, DeliveryStatus.IN_PROGRESS));
-            if (hasActiveDelivery && request.getStatus() != DriverStatus.ON_DELIVERY) {
+            boolean isOccupied = driver.getStatus() == DriverStatus.ON_DELIVERY ||
+                    deliveryRepository.existsByDriverIdAndStatusInAndActiveTrue(
+                            id, List.of(DeliveryStatus.ASSIGNED, DeliveryStatus.IN_PROGRESS));
+            if (isOccupied && request.getStatus() != DriverStatus.ON_DELIVERY) {
                 throw new ConflictException("Cannot change driver status to " + request.getStatus() + " while driver has active deliveries.");
             }
             driver.setStatus(request.getStatus());

@@ -69,14 +69,12 @@ public class MultiStopBatchAssignmentIntegrationTest {
     private Location customerB;
     private Vehicle van;
     private Driver driver;
-    private User adminUser;
-    private User regularUser;
 
     @BeforeEach
     void setUp() {
         TestDatabaseGuard.verifyTestDatabase(jdbcTemplate);
 
-        adminUser = userRepository.findByUsername("admin").orElseGet(() ->
+        userRepository.findByUsername("admin").orElseGet(() ->
                 userRepository.save(User.builder()
                         .username("admin")
                         .password("$2a$10$abcdefghijklmnopqrstuv")
@@ -88,7 +86,7 @@ public class MultiStopBatchAssignmentIntegrationTest {
                         .build())
         );
 
-        regularUser = userRepository.findByUsername("testuser").orElseGet(() ->
+        userRepository.findByUsername("testuser").orElseGet(() ->
                 userRepository.save(User.builder()
                         .username("testuser")
                         .password("$2a$10$abcdefghijklmnopqrstuv")

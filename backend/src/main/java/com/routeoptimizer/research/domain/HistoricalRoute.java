@@ -8,7 +8,6 @@ import lombok.*;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import com.routeoptimizer.research.domain.HistoricalTask;
 
 @Entity
 @Table(name = "research_historical_routes")

@@ -398,33 +398,35 @@ class UserVerificationAndBlockingIntegrationTest {
     @DisplayName("Concurrent attempts to block or unverify administrators maintain last admin safeguard")
     void testConcurrentAdminSafeguard() throws Exception {
         // admin1 and admin2 are both usable admins
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        CountDownLatch latch = new CountDownLatch(1);
+        int status1;
+        int status2;
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            CountDownLatch latch = new CountDownLatch(1);
 
-        // Attempt 1: Admin1 blocks Admin2
-        Callable<Integer> task1 = () -> {
-            latch.await();
-            return mockMvc.perform(put("/api/users/" + admin2.getId() + "/block")
-                            .header("Authorization", "Bearer " + admin1Token))
-                    .andReturn().getResponse().getStatus();
-        };
+            // Attempt 1: Admin1 blocks Admin2
+            Callable<Integer> task1 = () -> {
+                latch.await();
+                return mockMvc.perform(put("/api/users/" + admin2.getId() + "/block")
+                                .header("Authorization", "Bearer " + admin1Token))
+                        .andReturn().getResponse().getStatus();
+            };
 
-        // Attempt 2: Admin2 blocks Admin1
-        Callable<Integer> task2 = () -> {
-            latch.await();
-            return mockMvc.perform(put("/api/users/" + admin1.getId() + "/block")
-                            .header("Authorization", "Bearer " + admin2Token))
-                    .andReturn().getResponse().getStatus();
-        };
+            // Attempt 2: Admin2 blocks Admin1
+            Callable<Integer> task2 = () -> {
+                latch.await();
+                return mockMvc.perform(put("/api/users/" + admin1.getId() + "/block")
+                                .header("Authorization", "Bearer " + admin2Token))
+                        .andReturn().getResponse().getStatus();
+            };
 
-        Future<Integer> f1 = executor.submit(task1);
-        Future<Integer> f2 = executor.submit(task2);
+            Future<Integer> f1 = executor.submit(task1);
+            Future<Integer> f2 = executor.submit(task2);
 
-        latch.countDown(); // Release both tasks simultaneously
+            latch.countDown(); // Release both tasks simultaneously
 
-        int status1 = f1.get(10, TimeUnit.SECONDS);
-        int status2 = f2.get(10, TimeUnit.SECONDS);
-        executor.shutdown();
+            status1 = f1.get(10, TimeUnit.SECONDS);
+            status2 = f2.get(10, TimeUnit.SECONDS);
+        }
 
         // Exactly one should succeed (200), and the other must fail (either 400 Bad Request via the last-admin guard, or 401 Unauthorized if the blocked user's token is immediately rejected)
         List<Integer> statuses = List.of(status1, status2);

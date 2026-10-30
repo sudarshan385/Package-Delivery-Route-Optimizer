@@ -26,9 +26,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Method;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;

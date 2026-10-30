@@ -95,9 +95,10 @@ public class VehicleService {
         }
 
         if (request.getStatus() != null && request.getStatus() != vehicle.getStatus()) {
-            boolean hasActiveDelivery = deliveryRepository.existsByVehicleIdAndStatusInAndActiveTrue(
-                    id, List.of(DeliveryStatus.ASSIGNED, DeliveryStatus.IN_PROGRESS));
-            if (hasActiveDelivery && request.getStatus() != VehicleStatus.IN_USE) {
+            boolean isOccupied = vehicle.getStatus() == VehicleStatus.IN_USE ||
+                    deliveryRepository.existsByVehicleIdAndStatusInAndActiveTrue(
+                            id, List.of(DeliveryStatus.ASSIGNED, DeliveryStatus.IN_PROGRESS));
+            if (isOccupied && request.getStatus() != VehicleStatus.IN_USE) {
                 throw new ConflictException("Cannot change vehicle status to " + request.getStatus() + " while vehicle is in active delivery.");
             }
             vehicle.setStatus(request.getStatus());

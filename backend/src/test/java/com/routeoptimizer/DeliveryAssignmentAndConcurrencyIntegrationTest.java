@@ -52,9 +52,6 @@ class DeliveryAssignmentAndConcurrencyIntegrationTest {
     private VehicleRepository vehicleRepository;
 
     @Autowired
-    private DeliveryRepository deliveryRepository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private static final List<String> REQUIRED_TABLES = Arrays.asList(
@@ -197,40 +194,41 @@ class DeliveryAssignmentAndConcurrencyIntegrationTest {
             vehicles.add(createVehicle("REG-CONC-D-" + i, true, VehicleStatus.AVAILABLE));
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(concurrentRequests);
-        CyclicBarrier barrier = new CyclicBarrier(concurrentRequests);
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger conflictCount = new AtomicInteger(0);
-
         List<Future<?>> futures = new ArrayList<>();
-        for (int i = 0; i < concurrentRequests; i++) {
-            final int index = i;
-            futures.add(executor.submit(() -> {
-                try {
-                    barrier.await();
-                    deliveryService.assignDelivery(
-                            deliveries.get(index).getId(),
-                            AssignDeliveryRequest.builder().driverId(sharedDriver.getId()).vehicleId(vehicles.get(index).getId()).build(),
-                            adminUser.getUsername()
-                    );
-                    successCount.incrementAndGet();
-                } catch (ConflictException e) {
-                    conflictCount.incrementAndGet();
-                } catch (Exception e) {
-                    // unexpected exception
-                }
-            }));
-        }
+        try (ExecutorService executor = Executors.newFixedThreadPool(concurrentRequests)) {
+            CyclicBarrier barrier = new CyclicBarrier(concurrentRequests);
+            AtomicInteger successCount = new AtomicInteger(0);
+            AtomicInteger conflictCount = new AtomicInteger(0);
 
-        for (Future<?> f : futures) {
-            f.get();
-        }
-        executor.shutdown();
+            for (int i = 0; i < concurrentRequests; i++) {
+                final int index = i;
+                futures.add(executor.submit(() -> {
+                    try {
+                        barrier.await();
+                        deliveryService.assignDelivery(
+                                deliveries.get(index).getId(),
+                                AssignDeliveryRequest.builder().driverId(sharedDriver.getId()).vehicleId(vehicles.get(index).getId()).build(),
+                                adminUser.getUsername()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (ConflictException e) {
+                        conflictCount.incrementAndGet();
+                    } catch (Exception e) {
+                        // unexpected exception
+                    }
+                }));
+            }
 
-        // Exactly one assignment must succeed, all other 9 must receive 409 Conflict
-        assertThat(successCount.get()).isEqualTo(1);
-        assertThat(conflictCount.get()).isEqualTo(concurrentRequests - 1);
-        assertThat(driverRepository.findById(sharedDriver.getId()).orElseThrow().getStatus()).isEqualTo(DriverStatus.ON_DELIVERY);
+            for (Future<?> f : futures) {
+                f.get();
+            }
+            executor.shutdown();
+
+            // Exactly one assignment must succeed, all other 9 must receive 409 Conflict
+            assertThat(successCount.get()).isEqualTo(1);
+            assertThat(conflictCount.get()).isEqualTo(concurrentRequests - 1);
+            assertThat(driverRepository.findById(sharedDriver.getId()).orElseThrow().getStatus()).isEqualTo(DriverStatus.ON_DELIVERY);
+        }
     }
 
     @Test
@@ -249,35 +247,35 @@ class DeliveryAssignmentAndConcurrencyIntegrationTest {
             drivers.add(createDriver("conc_drv_" + i, "LIC-CONC-V-" + i, true, DriverStatus.AVAILABLE));
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(concurrentRequests);
-        CyclicBarrier barrier = new CyclicBarrier(concurrentRequests);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger conflictCount = new AtomicInteger(0);
 
-        List<Future<?>> futures = new ArrayList<>();
-        for (int i = 0; i < concurrentRequests; i++) {
-            final int index = i;
-            futures.add(executor.submit(() -> {
-                try {
-                    barrier.await();
-                    deliveryService.assignDelivery(
-                            deliveries.get(index).getId(),
-                            AssignDeliveryRequest.builder().driverId(drivers.get(index).getId()).vehicleId(sharedVehicle.getId()).build(),
-                            adminUser.getUsername()
-                    );
-                    successCount.incrementAndGet();
-                } catch (ConflictException e) {
-                    conflictCount.incrementAndGet();
-                } catch (Exception e) {
-                    // unexpected exception
-                }
-            }));
-        }
+        try (ExecutorService executor = Executors.newFixedThreadPool(concurrentRequests)) {
+            CyclicBarrier barrier = new CyclicBarrier(concurrentRequests);
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < concurrentRequests; i++) {
+                final int index = i;
+                futures.add(executor.submit(() -> {
+                    try {
+                        barrier.await();
+                        deliveryService.assignDelivery(
+                                deliveries.get(index).getId(),
+                                AssignDeliveryRequest.builder().driverId(drivers.get(index).getId()).vehicleId(sharedVehicle.getId()).build(),
+                                adminUser.getUsername()
+                        );
+                        successCount.incrementAndGet();
+                    } catch (ConflictException e) {
+                        conflictCount.incrementAndGet();
+                    } catch (Exception e) {
+                        // unexpected exception
+                    }
+                }));
+            }
 
-        for (Future<?> f : futures) {
-            f.get();
+            for (Future<?> f : futures) {
+                f.get();
+            }
         }
-        executor.shutdown();
 
         // Exactly one assignment must succeed, all other 9 must receive 409 Conflict
         assertThat(successCount.get()).isEqualTo(1);
@@ -290,7 +288,7 @@ class DeliveryAssignmentAndConcurrencyIntegrationTest {
     void testDriverSpecificDeliveryActions() {
         setupBaseData();
         Driver driverA = createDriver("assigned_driver_a", "LIC-DRV-A", true, DriverStatus.AVAILABLE);
-        Driver driverB = createDriver("assigned_driver_b", "LIC-DRV-B", true, DriverStatus.AVAILABLE);
+        createDriver("assigned_driver_b", "LIC-DRV-B", true, DriverStatus.AVAILABLE);
         Vehicle veh1 = createVehicle("REG-DRV-1", true, VehicleStatus.AVAILABLE);
 
         Package p = createPackage("TRK-DRV-AUTH");

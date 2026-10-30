@@ -18,7 +18,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 @Service
 public class DDQNPPDRPExperimentRunner {
@@ -41,9 +40,6 @@ public class DDQNPPDRPExperimentRunner {
 
     public ExperimentResult runExperiment(ExperimentConfiguration config) {
         config.validate();
-
-        // Use random seed
-        Random random = new Random(config.getRandomSeed());
 
         // 1. Load Dataset
         datasetProvider.loadDataset(config.getDatasetPath());
@@ -71,8 +67,6 @@ public class DDQNPPDRPExperimentRunner {
         long totalSteps = 0;
         long totalUpdates = 0;
         double finalEpsilon = config.getEpsilonStart();
-        double totalCmr = 0;
-        double totalEd = 0;
 
         // 2. Train
         for (TrainingInput input : trainData) {
