@@ -64,4 +64,3 @@ backend/classpath.txt
 *.bak
 
 # Large research datasets (exceeds GitHub 100MB limit)
-research-data/*.json

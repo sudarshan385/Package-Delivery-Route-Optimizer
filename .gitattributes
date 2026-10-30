@@ -1,0 +1,2 @@
+research-data/package_data.json filter=lfs diff=lfs merge=lfs -text
+research-data/route_data.json filter=lfs diff=lfs merge=lfs -text
