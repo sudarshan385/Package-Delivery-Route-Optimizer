@@ -22,7 +22,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
     List<Delivery> findByActiveTrue();
     List<Delivery> findByRouteIdAndActiveTrue(Long routeId);
 
-    @Query("SELECT d FROM Delivery d WHERE d.sourceLocation.id = :hubId AND d.status = :status AND d.active = true AND d.route IS NULL ORDER BY d.id ASC")
+    @Query("SELECT d FROM Delivery d WHERE (d.hub.id = :hubId OR d.sourceLocation.id = :hubId) AND d.status = :status AND d.active = true AND d.route IS NULL ORDER BY d.id ASC")
     List<Delivery> findEligibleUnassignedByHub(@Param("hubId") Long hubId, @Param("status") DeliveryStatus status);
 
     @Query("SELECT COUNT(d) > 0 FROM Delivery d WHERE d.route.id = :routeId AND d.id != :deliveryId AND d.status NOT IN :terminalStatuses AND d.active = true")

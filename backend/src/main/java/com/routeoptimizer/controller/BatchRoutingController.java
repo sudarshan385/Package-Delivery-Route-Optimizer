@@ -41,6 +41,19 @@ public class BatchRoutingController {
         return ResponseEntity.ok(batchRoutingService.proposeBatchPickup(hubId, maxRadiusKm, vehicleId));
     }
 
+    @PostMapping("/batch/propose-pickup")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BatchRouteProposalResponse> proposeBatchPickupPost(
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestParam(required = false) Long hubId,
+            @RequestParam(required = false) Double maxRadiusKm,
+            @RequestParam(required = false) Long vehicleId) {
+        Long resolvedHubId = extractLong(body, "hubId", hubId);
+        Double resolvedRadius = extractDouble(body, "radiusKm", extractDouble(body, "maxRadiusKm", maxRadiusKm));
+        Long resolvedVehicleId = extractLong(body, "vehicleId", vehicleId);
+        return ResponseEntity.ok(batchRoutingService.proposeBatchPickup(resolvedHubId, resolvedRadius, resolvedVehicleId));
+    }
+
     @GetMapping("/batch/propose-delivery")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BatchRouteProposalResponse> proposeBatchDelivery(
@@ -48,6 +61,19 @@ public class BatchRoutingController {
             @RequestParam(required = false) Double maxRadiusKm,
             @RequestParam(required = false) Long vehicleId) {
         return ResponseEntity.ok(batchRoutingService.proposeBatchDelivery(hubId, maxRadiusKm, vehicleId));
+    }
+
+    @PostMapping("/batch/propose-delivery")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BatchRouteProposalResponse> proposeBatchDeliveryPost(
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestParam(required = false) Long hubId,
+            @RequestParam(required = false) Double maxRadiusKm,
+            @RequestParam(required = false) Long vehicleId) {
+        Long resolvedHubId = extractLong(body, "hubId", hubId);
+        Double resolvedRadius = extractDouble(body, "radiusKm", extractDouble(body, "maxRadiusKm", maxRadiusKm));
+        Long resolvedVehicleId = extractLong(body, "vehicleId", vehicleId);
+        return ResponseEntity.ok(batchRoutingService.proposeBatchDelivery(resolvedHubId, resolvedRadius, resolvedVehicleId));
     }
 
     @PostMapping("/batch/dispatch")
@@ -63,5 +89,23 @@ public class BatchRoutingController {
     public ResponseEntity<DriverManifestResponse> getDriverManifest(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(batchRoutingService.getDriverManifest(userDetails.getUsername()));
+    }
+
+    private Long extractLong(Map<String, Object> body, String key, Long fallback) {
+        if (body != null && body.containsKey(key) && body.get(key) != null) {
+            try {
+                return Long.valueOf(body.get(key).toString());
+            } catch (Exception ignored) {}
+        }
+        return fallback;
+    }
+
+    private Double extractDouble(Map<String, Object> body, String key, Double fallback) {
+        if (body != null && body.containsKey(key) && body.get(key) != null) {
+            try {
+                return Double.valueOf(body.get(key).toString());
+            } catch (Exception ignored) {}
+        }
+        return fallback;
     }
 }

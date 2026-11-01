@@ -18,6 +18,8 @@ public interface LocationEdgeRepository extends JpaRepository<LocationEdge, Long
 
     List<LocationEdge> findBySourceLocationIdAndActiveTrue(Long sourceLocationId);
 
+    List<LocationEdge> findByDestinationLocationIdAndActiveTrue(Long destinationLocationId);
+
     Optional<LocationEdge> findBySourceLocationIdAndDestinationLocationId(Long sourceLocationId, Long destinationLocationId);
 
     boolean existsBySourceLocationIdAndDestinationLocationId(Long sourceLocationId, Long destinationLocationId);

@@ -142,7 +142,7 @@ export default function RouteOptimizer() {
   // Toggle delivery selection
   const toggleDeliverySelection = (id) => {
     setSelectedDeliveryIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter(x => x !== id) : Array.from(new Set([...prev, id]))
     );
   };
 
@@ -169,10 +169,10 @@ export default function RouteOptimizer() {
       });
   };
 
-  // Calculate selected payload weight
+  // Calculate selected payload weight from real database weights
   const totalSelectedPayload = unassignedDeliveries
     .filter(d => selectedDeliveryIds.includes(d.id))
-    .reduce((sum, d) => sum + (d.packageWeight || d.weight || 0), 0);
+    .reduce((sum, d) => sum + (d.packageWeight || d.weight || d.packageDetails?.weight || 0), 0);
 
   // --- MULTI-STOP TOUR OPTIMIZATION (ADMIN) ---
   const handleOptimizeMultiStop = async () => {
@@ -969,7 +969,7 @@ export default function RouteOptimizer() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div>
                   <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--theme-text)', margin: 0 }}>
-                    Eligible Unassigned Deliveries at Selected Hub ({unassignedDeliveries.length})
+                    Eligible Unassigned Deliveries (Within 10 km Radius) ({unassignedDeliveries.length})
                   </h4>
                   <span style={{ fontSize: 12, color: 'var(--theme-muted)' }}>
                     Selected: <strong>{selectedDeliveryIds.length}</strong> / {unassignedDeliveries.length} • Total Payload Weight: <strong style={{ color: 'var(--color-primary)' }}>{totalSelectedPayload.toFixed(1)} kg</strong>
@@ -994,9 +994,9 @@ export default function RouteOptimizer() {
               ) : unassignedDeliveries.length === 0 ? (
                 <div style={{ padding: 24, textAlign: 'center', backgroundColor: 'var(--theme-elevated)', borderRadius: 'var(--radius-card)', border: '1px dashed var(--theme-border)' }}>
                   <Package size={28} color="var(--theme-muted)" style={{ margin: '0 auto 8px' }} />
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--theme-text)' }}>No unassigned deliveries found at this Hub</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--theme-text)' }}>No eligible unassigned deliveries found within 10 km radius</div>
                   <div style={{ fontSize: 12, color: 'var(--theme-muted)', marginTop: 4 }}>
-                    Create customer packages and deliveries originating from this hub in the Deliveries module.
+                    No unassigned customer deliveries with destinations within 10 km of this Central Hub. Select another hub or register new shipments.
                   </div>
                 </div>
               ) : (
@@ -1023,7 +1023,11 @@ export default function RouteOptimizer() {
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}} // handled by parent onClick
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleDeliverySelection(del.id);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
                           style={{ width: 18, height: 18, accentColor: 'var(--color-primary)', cursor: 'pointer' }}
                         />
 
@@ -1042,7 +1046,7 @@ export default function RouteOptimizer() {
                                 color: 'var(--color-primary)' 
                               }}
                             >
-                              {(del.packageWeight || del.weight || 1.0).toFixed(1)} kg
+                              {(del.packageWeight || del.weight || del.packageDetails?.weight || 1.0).toFixed(1)} kg
                             </span>
                           </div>
 

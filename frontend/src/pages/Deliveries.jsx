@@ -372,7 +372,8 @@ export default function Deliveries() {
               <Table>
                 <TableHeader>
                   <tr>
-                    <TableHead>Tracking #</TableHead>
+                    <TableHead>Delivery ID</TableHead>
+                    <TableHead>Package ID</TableHead>
                     <TableHead>Item Details</TableHead>
                     <TableHead>Pickup Location</TableHead>
                     <TableHead>Destination</TableHead>
@@ -384,6 +385,11 @@ export default function Deliveries() {
                 <TableBody>
                   {shipments.map((s) => (
                     <TableRow key={s.id || s.deliveryId}>
+                      <TableCell>
+                        <span className="font-mono font-bold text-slate-300">
+                          #{s.deliveryId || s.id}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <span className="font-mono font-bold text-cyan-400">
                           {s.trackingNumber}
@@ -776,7 +782,8 @@ export default function Deliveries() {
                 <Table>
                   <TableHeader>
                     <tr>
-                      <TableHead>Tracking #</TableHead>
+                      <TableHead>Delivery ID</TableHead>
+                      <TableHead>Package ID</TableHead>
                       <TableHead>Item / Spec</TableHead>
                       <TableHead>Sender & Pickup Address</TableHead>
                       <TableHead>Nearest Hub & Selection Rationale</TableHead>
@@ -789,6 +796,11 @@ export default function Deliveries() {
                       const firstLeg = s.legs?.find((l) => l.legType === 'FIRST_MILE');
                       return (
                         <TableRow key={s.id || s.deliveryId}>
+                          <TableCell>
+                            <span className="font-mono font-bold text-slate-300">
+                              #{s.deliveryId || s.id}
+                            </span>
+                          </TableCell>
                           <TableCell>
                             <span className="font-mono font-bold text-cyan-400">
                               {s.trackingNumber}
@@ -872,7 +884,8 @@ export default function Deliveries() {
                 <Table>
                   <TableHeader>
                     <tr>
-                      <TableHead>Tracking #</TableHead>
+                      <TableHead>Delivery ID</TableHead>
+                      <TableHead>Package ID</TableHead>
                       <TableHead>Pickup Partner</TableHead>
                       <TableHead>Vehicle</TableHead>
                       <TableHead>Transit Stage</TableHead>
@@ -885,6 +898,11 @@ export default function Deliveries() {
                       const firstLeg = s.legs?.find((l) => l.legType === 'FIRST_MILE');
                       return (
                         <TableRow key={s.id || s.deliveryId}>
+                          <TableCell>
+                            <span className="font-mono font-bold text-slate-300">
+                              #{s.deliveryId || s.id}
+                            </span>
+                          </TableCell>
                           <TableCell>
                             <span className="font-mono font-bold text-cyan-400">
                               {s.trackingNumber}
@@ -956,7 +974,8 @@ export default function Deliveries() {
                 <Table>
                   <TableHeader>
                     <tr>
-                      <TableHead>Tracking #</TableHead>
+                      <TableHead>Delivery ID</TableHead>
+                      <TableHead>Package ID</TableHead>
                       <TableHead>Item Details</TableHead>
                       <TableHead>Current Location</TableHead>
                       <TableHead>Final Destination</TableHead>
@@ -968,6 +987,11 @@ export default function Deliveries() {
                       const finalLeg = s.legs?.find((l) => l.legType === 'FINAL_MILE');
                       return (
                         <TableRow key={s.id || s.deliveryId}>
+                          <TableCell>
+                            <span className="font-mono font-bold text-slate-300">
+                              #{s.deliveryId || s.id}
+                            </span>
+                          </TableCell>
                           <TableCell>
                             <span className="font-mono font-bold text-cyan-400">
                               {s.trackingNumber}
@@ -1032,7 +1056,8 @@ export default function Deliveries() {
                 <Table>
                   <TableHeader>
                     <tr>
-                      <TableHead>Tracking #</TableHead>
+                      <TableHead>Delivery ID</TableHead>
+                      <TableHead>Package ID</TableHead>
                       <TableHead>Final-Mile Partner</TableHead>
                       <TableHead>Recipient</TableHead>
                       <TableHead>Delivery Status</TableHead>
@@ -1044,6 +1069,11 @@ export default function Deliveries() {
                       const finalLeg = s.legs?.find((l) => l.legType === 'FINAL_MILE');
                       return (
                         <TableRow key={s.id || s.deliveryId}>
+                          <TableCell>
+                            <span className="font-mono font-bold text-slate-300">
+                              #{s.deliveryId || s.id}
+                            </span>
+                          </TableCell>
                           <TableCell>
                             <span className="font-mono font-bold text-cyan-400">
                               {s.trackingNumber}
@@ -1086,7 +1116,7 @@ export default function Deliveries() {
                 <TableHeader>
                   <tr>
                     <TableHead>Delivery ID</TableHead>
-                    <TableHead>Package Details</TableHead>
+                    <TableHead>Package ID</TableHead>
                     <TableHead>Pickup Location</TableHead>
                     <TableHead>Delivery Location</TableHead>
                     <TableHead>Assigned Driver</TableHead>

@@ -223,6 +223,27 @@ public class DeliveryService {
                     if (!hasOtherNonTerminal) {
                         route.setStatus("RETURNING_TO_HUB");
                         routeRepository.save(route);
+                        if (delivery.getDriver() != null && delivery.getDriver().getStatus() == DriverStatus.ON_DELIVERY) {
+                            Driver d = delivery.getDriver();
+                            d.setStatus(DriverStatus.AVAILABLE);
+                            driverRepository.save(d);
+                        }
+                        if (delivery.getVehicle() != null && delivery.getVehicle().getStatus() == VehicleStatus.IN_USE) {
+                            Vehicle v = delivery.getVehicle();
+                            v.setStatus(VehicleStatus.AVAILABLE);
+                            vehicleRepository.save(v);
+                        }
+                    }
+                } else {
+                    if (delivery.getDriver() != null && delivery.getDriver().getStatus() == DriverStatus.ON_DELIVERY) {
+                        Driver d = delivery.getDriver();
+                        d.setStatus(DriverStatus.AVAILABLE);
+                        driverRepository.save(d);
+                    }
+                    if (delivery.getVehicle() != null && delivery.getVehicle().getStatus() == VehicleStatus.IN_USE) {
+                        Vehicle v = delivery.getVehicle();
+                        v.setStatus(VehicleStatus.AVAILABLE);
+                        vehicleRepository.save(v);
                     }
                 }
                 // Resources remain occupied (Driver ON_DELIVERY, Vehicle IN_USE) until Return to Hub is confirmed.
@@ -532,7 +553,8 @@ public class DeliveryService {
             }
             if (delivery.getSourceLocation() != null && route.getSourceLocation() != null &&
                     !delivery.getSourceLocation().getId().equals(route.getSourceLocation().getId())) {
-                throw new BadRequestException("Delivery " + dId + " source does not match route hub");
+                delivery.setSourceLocation(route.getSourceLocation());
+                delivery.setHub(route.getSourceLocation());
             }
             // Allow assignment only for CREATED or ASSIGNED (reassignment of same manifest)
             if (delivery.getStatus() != DeliveryStatus.CREATED && delivery.getStatus() != DeliveryStatus.ASSIGNED) {
@@ -601,16 +623,48 @@ public class DeliveryService {
 
     @Transactional(readOnly = true)
     public List<DeliveryResponse> getUnassignedDeliveriesByHub(Long hubId) {
-        List<Delivery> list;
+        List<Delivery> allCreated = deliveryRepository.findByStatusAndActiveTrue(DeliveryStatus.CREATED);
+
+        // Filter unassigned candidate deliveries:
+        // Must have no driver, no vehicle, active package, active destination location with valid coordinates
+        List<Delivery> unassignedCandidates = allCreated.stream()
+                .filter(d -> Boolean.TRUE.equals(d.getActive()))
+                .filter(d -> d.getDriver() == null && d.getVehicle() == null)
+                .filter(d -> d.getPackage() != null && Boolean.TRUE.equals(d.getPackage().getActive()))
+                .filter(d -> d.getDestinationLocation() != null && Boolean.TRUE.equals(d.getDestinationLocation().getActive()))
+                .filter(d -> d.getDestinationLocation().getLatitude() != null && d.getDestinationLocation().getLongitude() != null)
+                .toList();
+
+        List<Delivery> eligibleList;
         if (hubId != null) {
-            list = deliveryRepository.findEligibleUnassignedByHub(hubId, DeliveryStatus.CREATED);
+            Location hub = locationRepository.findById(hubId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Central Hub not found with id: " + hubId));
+            Double hubLat = hub.getLatitude();
+            Double hubLon = hub.getLongitude();
+
+            if (hubLat == null || hubLon == null) {
+                throw new BadRequestException("Selected hub " + hub.getName() + " has invalid coordinates");
+            }
+
+            // Radius eligibility: destination within configured 10.0 km radius from selected hub
+            final double maxRadiusKm = 10.0;
+            eligibleList = unassignedCandidates.stream()
+                    .filter(d -> {
+                        double distKm = RoutingService.calculateHaversineKm(
+                                hubLat, hubLon,
+                                d.getDestinationLocation().getLatitude(), d.getDestinationLocation().getLongitude()
+                        );
+                        return distKm <= maxRadiusKm;
+                    })
+                    .sorted(java.util.Comparator.comparing(Delivery::getId))
+                    .toList();
         } else {
-            list = deliveryRepository.findByStatusAndActiveTrue(DeliveryStatus.CREATED)
-                    .stream()
-                    .filter(d -> d.getRoute() == null)
+            eligibleList = unassignedCandidates.stream()
+                    .sorted(java.util.Comparator.comparing(Delivery::getId))
                     .toList();
         }
-        return list.stream().map(this::mapToDeliveryResponse).toList();
+
+        return eligibleList.stream().map(this::mapToDeliveryResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -844,6 +898,15 @@ public class DeliveryService {
                 .version(d.getVersion())
                 .createdAt(d.getCreatedAt())
                 .updatedAt(d.getUpdatedAt())
+                .hubId(d.getHub() != null ? d.getHub().getId() : null)
+                .hubName(d.getHub() != null ? d.getHub().getName() : null)
+                .hubAddress(d.getHub() != null ? d.getHub().getAddress() : null)
+                .hubLatitude(d.getHub() != null ? d.getHub().getLatitude() : null)
+                .hubLongitude(d.getHub() != null ? d.getHub().getLongitude() : null)
+                .hubSelectionBasis(d.getHubSelectionBasis())
+                .currentStage(d.getCurrentStage())
+                .packageWeight(d.getPackage() != null ? d.getPackage().getWeight() : null)
+                .weight(d.getPackage() != null ? d.getPackage().getWeight() : null)
                 .build();
     }
 }

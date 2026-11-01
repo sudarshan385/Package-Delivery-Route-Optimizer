@@ -210,9 +210,9 @@ public class RouteService {
         validateDeliveryAccess(delivery, currentUsername);
 
         Route route = routeRepository.findByDeliveryIdAndIsCurrentTrue(deliveryId)
-                .orElseThrow(() -> new ResourceNotFoundException("No current active route found for delivery: " + deliveryId));
+                .orElse(null);
 
-        return mapToRouteResponse(route);
+        return route != null ? mapToRouteResponse(route) : null;
     }
 
     private void validateRouteAccess(Route route, String currentUsername) {
@@ -332,15 +332,28 @@ public class RouteService {
                 throw new ConflictException("Cannot optimize route for delivery " + dId + " in status: " + delivery.getStatus());
             }
 
-            if (delivery.getSourceLocation() == null || !hub.getId().equals(delivery.getSourceLocation().getId())) {
-                throw new BadRequestException("Delivery " + dId + " source location (" +
-                        (delivery.getSourceLocation() != null ? delivery.getSourceLocation().getId() : "null") +
-                        ") does not match central hub location ID " + hub.getId());
-            }
-
             if (delivery.getDestinationLocation() == null || !Boolean.TRUE.equals(delivery.getDestinationLocation().getActive())) {
                 throw new BadRequestException("Delivery " + dId + " destination location is null or inactive");
             }
+
+            if (delivery.getDestinationLocation().getLatitude() == null || delivery.getDestinationLocation().getLongitude() == null) {
+                throw new BadRequestException("Delivery " + dId + " destination location coordinates are missing");
+            }
+
+            double distKm = RoutingService.calculateHaversineKm(
+                    hub.getLatitude(), hub.getLongitude(),
+                    delivery.getDestinationLocation().getLatitude(), delivery.getDestinationLocation().getLongitude()
+            );
+
+            if (distKm > 10.0 && (delivery.getHub() == null || !hub.getId().equals(delivery.getHub().getId()))) {
+                throw new BadRequestException(String.format(
+                        "Delivery %d destination (%.2f km) exceeds 10 km radius from central hub %s",
+                        dId, distKm, hub.getName()));
+            }
+
+            // Align delivery source and hub with this central hub
+            delivery.setHub(hub);
+            delivery.setSourceLocation(hub);
 
             totalWeightKg += delivery.getPackage().getWeight();
             deliveries.add(delivery);
@@ -442,6 +455,8 @@ public class RouteService {
         // Associate all deliveries to the persisted route manifest
         for (Delivery d : deliveries) {
             d.setRoute(savedRoute);
+            d.setHub(hub);
+            d.setSourceLocation(hub);
             deliveryRepository.save(d);
         }
 
@@ -469,3 +484,4 @@ public class RouteService {
                 .build();
     }
 }
+

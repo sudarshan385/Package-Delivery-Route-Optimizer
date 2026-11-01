@@ -103,15 +103,19 @@ public class BatchRoutingService {
                 continue;
             }
 
-            // Must match destination hub
-            boolean hubMatches = (leg.getDestinationLocation() != null && leg.getDestinationLocation().getId().equals(hub.getId())) ||
-                    (delivery.getHub() != null && delivery.getHub().getId().equals(hub.getId()));
-            if (!hubMatches) {
+            Package pkg = delivery.getPackage();
+            Location pickupLoc = leg.getSourceLocation();
+            if (pickupLoc == null || pickupLoc.getLatitude() == null || pickupLoc.getLongitude() == null) {
                 continue;
             }
 
-            Package pkg = delivery.getPackage();
-            Location pickupLoc = leg.getSourceLocation();
+            double pickupToHubDist = calculateHaversineKm(pickupLoc.getLatitude(), pickupLoc.getLongitude(), hub.getLatitude(), hub.getLongitude());
+            boolean isWithinRadius = pickupToHubDist <= effectiveRadius;
+            boolean hubMatches = (leg.getDestinationLocation() != null && leg.getDestinationLocation().getId().equals(hub.getId())) ||
+                    (delivery.getHub() != null && delivery.getHub().getId().equals(hub.getId()));
+            if (!isWithinRadius && !hubMatches) {
+                continue;
+            }
             double pkgWeight = (pkg != null && pkg.getWeight() != null) ? pkg.getWeight() : 1.0;
 
             CandidateStopEvaluation eval = CandidateStopEvaluation.builder()
@@ -367,7 +371,12 @@ public class BatchRoutingService {
                     .contactPhone(pkg != null ? pkg.getReceiverPhone() : null)
                     .build();
 
-            if (!hubMatches) {
+            double destToHubDist = (destLoc.getLatitude() != null && destLoc.getLongitude() != null)
+                    ? calculateHaversineKm(destLoc.getLatitude(), destLoc.getLongitude(), hub.getLatitude(), hub.getLongitude())
+                    : Double.MAX_VALUE;
+            boolean isWithinRadius = destToHubDist <= effectiveRadius;
+
+            if (!isWithinRadius && !hubMatches) {
                 continue;
             }
 

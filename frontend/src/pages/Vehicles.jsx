@@ -44,6 +44,21 @@ export default function Vehicles() {
     fetchVehicles();
   }, []);
 
+  const normalizeRegistrationInput = (val) => {
+    if (!val) return '';
+    let cleaned = val.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleaned.length <= 2) return cleaned;
+    if (cleaned.length <= 4) return cleaned.slice(0, 2) + '-' + cleaned.slice(2);
+    const match = cleaned.match(/^([A-Z]{2})(\d{1,2})([A-Z]{1,2})?(\d{1,4})?$/);
+    if (match) {
+      let res = match[1] + '-' + match[2];
+      if (match[3]) res += '-' + match[3];
+      if (match[4]) res += '-' + match[4];
+      return res;
+    }
+    return cleaned;
+  };
+
   const openCreate = () => {
     setForm({ registrationNumber: '', vehicleType: 'VAN', capacity: '', status: 'AVAILABLE' });
     setEditing(null);
@@ -67,9 +82,18 @@ export default function Vehicles() {
     e.preventDefault();
     setError('');
 
-    const reg = form.registrationNumber.trim();
+    let reg = form.registrationNumber.trim().toUpperCase();
     if (!reg) {
       setError('Registration number is required.');
+      return;
+    }
+    const compactMatch = reg.replace(/[\s-]/g, '').match(/^([A-Z]{2})(\d{2})([A-Z]{1,2})(\d{4})$/);
+    if (compactMatch) {
+      reg = `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}-${compactMatch[4]}`;
+    }
+    const REG_REGEX = /^[A-Z]{2}-\d{2}-[A-Z]{1,2}-\d{4}$/;
+    if (!REG_REGEX.test(reg)) {
+      setError("Invalid registration format. Must follow standard format 'KA-01-AB-1234' (e.g., KA-05-MC-9999).");
       return;
     }
 
@@ -238,7 +262,8 @@ export default function Vehicles() {
             id="vehicle-reg"
             placeholder="e.g. KA-01-AB-1234"
             value={form.registrationNumber}
-            onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })}
+            onChange={(e) => setForm({ ...form, registrationNumber: normalizeRegistrationInput(e.target.value) })}
+            helperText="Format: KA-01-AB-1234"
             required
           />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -249,6 +274,7 @@ export default function Vehicles() {
               onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}
             >
               <option value="BIKE">Bike</option>
+              <option value="MOTORCYCLE">Motorcycle</option>
               <option value="CAR">Car</option>
               <option value="VAN">Van</option>
               <option value="TRUCK">Truck</option>
@@ -297,3 +323,4 @@ export default function Vehicles() {
     </div>
   );
 }
+

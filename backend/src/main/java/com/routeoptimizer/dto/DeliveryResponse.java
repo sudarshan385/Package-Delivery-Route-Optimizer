@@ -43,6 +43,8 @@ public class DeliveryResponse {
     private Double hubLongitude;
     private String hubSelectionBasis;
     private String currentStage;
+    private Double packageWeight;
+    private Double weight;
     private PackageResponse packageDetails;
     private java.util.List<DeliveryLegResponse> legs;
     private java.util.List<ShipmentEventResponse> events;

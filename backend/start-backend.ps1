@@ -58,6 +58,34 @@ if (-not $javaExe) {
 $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 Write-Host "[OK] Java 21 configured: $env:JAVA_HOME"
 
+# Ensure Maven is available on PATH
+if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) {
+    $userPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+    if ($userPath) {
+        $env:PATH = "$userPath;$env:PATH"
+    }
+}
+if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) {
+    $knownMavenPaths = @(
+        "$env:USERPROFILE\Downloads\apache-maven-*\bin",
+        "C:\Program Files\apache-maven-*\bin",
+        "C:\apache-maven-*\bin"
+    )
+    foreach ($mPattern in $knownMavenPaths) {
+        $foundM = Get-Item $mPattern -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($foundM -and (Test-Path (Join-Path $foundM.FullName "mvn.cmd"))) {
+            $env:PATH = "$($foundM.FullName);$env:PATH"
+            break
+        }
+    }
+}
+if (Get-Command mvn -ErrorAction SilentlyContinue) {
+    Write-Host "[OK] Maven configured: $((Get-Command mvn).Source)"
+} else {
+    Write-Error "[FATAL] Maven (mvn) not found. Please install Maven or add it to PATH."
+    exit 1
+}
+
 # 2. Environment Configuration & Validation (Fail-Early)
 if (-not $env:DEV_DB_URL) {
     $env:DEV_DB_URL = "jdbc:postgresql://localhost:5432/packagedeliveryrouteoptimizer"

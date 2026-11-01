@@ -11,6 +11,7 @@ import com.routeoptimizer.exception.ConflictException;
 import com.routeoptimizer.exception.ResourceNotFoundException;
 import com.routeoptimizer.repository.DeliveryRepository;
 import com.routeoptimizer.repository.VehicleRepository;
+import com.routeoptimizer.util.VehicleRegistrationNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,7 +31,7 @@ public class VehicleService {
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public VehicleResponse createVehicle(VehicleRequest request) {
-        String trimmedReg = request.getRegistrationNumber().trim().toUpperCase();
+        String trimmedReg = VehicleRegistrationNormalizer.normalize(request.getRegistrationNumber());
         if (vehicleRepository.existsByRegistrationNumber(trimmedReg)) {
             throw new ConflictException("Vehicle with registration number '" + trimmedReg + "' already exists.");
         }
@@ -85,7 +86,7 @@ public class VehicleService {
         Vehicle vehicle = vehicleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vehicle not found with id: " + id));
 
-        String trimmedReg = request.getRegistrationNumber().trim().toUpperCase();
+        String trimmedReg = VehicleRegistrationNormalizer.normalize(request.getRegistrationNumber());
         if (vehicleRepository.existsByRegistrationNumberAndIdNot(trimmedReg, id)) {
             throw new ConflictException("Vehicle with registration number '" + trimmedReg + "' already exists.");
         }
