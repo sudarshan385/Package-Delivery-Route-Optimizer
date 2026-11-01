@@ -28,7 +28,9 @@ export default function Packages() {
   const [hubLocations, setHubLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showCustomerModal, setShowCustomerModal] = useState(() => {
+    return typeof window !== 'undefined' && (window.location.search.includes('create') || window.location.search.includes('action=create'));
+  });
   const [editing, setEditing] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);

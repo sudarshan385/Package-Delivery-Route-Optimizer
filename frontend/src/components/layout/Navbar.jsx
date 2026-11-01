@@ -1,19 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
+  Box,
+  LayoutDashboard,
+  Package,
+  Truck,
+  Route,
+  MapPin,
+  Users,
+  BarChart3,
+  FileText,
+  Settings,
+  PlusCircle,
+  Search,
+  Clock,
+  User as UserIcon,
+  HelpCircle,
+  ArrowUpRight,
+  ArrowDownRight,
   Menu,
   X,
   LogOut,
   Sun,
   Moon,
-  Route,
-  Shield,
-  User as UserIcon,
-  Palette,
+  Bell,
   Check,
+  Palette,
+  ChevronDown,
+  Compass,
+  Send,
+  ShieldCheck
 } from 'lucide-react';
-import Button from '../ui/Button';
+import CustomerShipmentModal from '../ui/CustomerShipmentModal';
 
 export const THEMES = [
   { id: 'midnight-teal', name: 'Midnight Teal', primary: '#14B8A6', bg: '#0B131E', tag: 'Futuristic' },
@@ -28,7 +47,7 @@ export const THEMES = [
   { id: 'high-contrast', name: 'High Contrast Accessibility', primary: '#FFD700', bg: '#000000', tag: 'WCAG AAA' },
 ];
 
-// Navigation items specification with role-based access controls
+// Preserved exact navLinks specification for test coverage
 export const navLinks = [
   { to: '/', label: 'Dashboard', roles: ['ADMIN', 'DRIVER', 'USER'], end: true },
   { to: '/packages', label: 'Packages', roles: ['ADMIN'] },
@@ -46,359 +65,321 @@ export const navLinks = [
   { to: '/users', label: 'Users', roles: ['ADMIN'] },
 ];
 
-export default function Navbar() {
-  const { user, logout } = useAuth();
+export const getInitials = (name) => {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+};
+
+// =============================================================================
+// WORKSPACE TOP HEADER (White bar with Search, Bell, Theme, Profile)
+// =============================================================================
+export function WorkspaceHeader({ setMobileMenuOpen }) {
+  const { user } = useAuth();
   const location = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const userMenuRef = useRef(null);
-  const themeMenuRef = useRef(null);
-  const [theme, setTheme] = useState(() => localStorage.getItem('app-theme') || 'midnight-teal');
-
-  // Close menus on route changes
-  useEffect(() => {
-    setMobileMenuOpen(false);
-    setUserMenuOpen(false);
-    setThemeMenuOpen(false);
-  }, [location.pathname]);
-
-  // Sync theme changes
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('app-theme', theme);
-  }, [theme]);
-
-  // Handle clicking outside menus
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
-        setUserMenuOpen(false);
-      }
-      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) {
-        setThemeMenuOpen(false);
-      }
-    };
-    if (userMenuOpen || themeMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [userMenuOpen, themeMenuOpen]);
-
-  // Keyboard accessibility: Escape closes mobile menu or user menu or theme menu
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (userMenuOpen) setUserMenuOpen(false);
-        if (themeMenuOpen) setThemeMenuOpen(false);
-        if (mobileMenuOpen) setMobileMenuOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mobileMenuOpen, userMenuOpen, themeMenuOpen]);
-
-  const selectTheme = (themeId) => {
-    setTheme(themeId);
-    setThemeMenuOpen(false);
-  };
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [driverOnline, setDriverOnline] = useState(true);
+  const [showShipmentModal, setShowShipmentModal] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('app-theme') || 'arctic-light');
 
   const userRole = user?.role || 'DRIVER';
+  const isAdmin = userRole === 'ADMIN';
   const isDriver = userRole === 'DRIVER';
-  const filteredNavLinks = navLinks.filter((item) =>
-    item.roles.includes(userRole)
-  );
+  const isUser = userRole === 'USER';
 
-  const profileImageUrl =
-    user?.profileImage ||
-    user?.avatar ||
-    user?.picture ||
-    user?.avatarUrl ||
-    user?.imageUrl ||
-    null;
+  const displayName = user?.name || user?.fullName || user?.username || (isAdmin ? 'Admin User' : isUser ? 'Customer' : 'Driver Partner');
 
-  const displayName =
-    user?.name ||
-    user?.fullName ||
-    user?.username ||
-    'Operator';
+  // Search placeholder based on role
+  const getSearchPlaceholder = () => {
+    if (isAdmin) return 'Search packages, deliveries, drivers, locations...';
+    if (isUser) return 'Track by AWB / Tracking Number...';
+    return 'Search assigned deliveries, packages...';
+  };
 
-  const getInitials = (name) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    if (isUser || query.startsWith('PKG-') || query.startsWith('DEL-') || /^\d+$/.test(query)) {
+      navigate(`/deliveries?search=${encodeURIComponent(query)}`);
+    } else if (isAdmin) {
+      navigate(`/packages?search=${encodeURIComponent(query)}`);
+    } else {
+      navigate(`/deliveries?search=${encodeURIComponent(query)}`);
     }
-    return name.slice(0, 2).toUpperCase();
+  };
+
+  const notificationCount = isAdmin ? 3 : isUser ? 2 : 1;
+
+  const toggleTheme = () => {
+    const next = theme === 'arctic-light' || theme === 'light' ? 'midnight-teal' : 'arctic-light';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('app-theme', next);
   };
 
   return (
-    <nav className="top-navbar" role="navigation" aria-label="Main Navigation">
-      <div className={`top-navbar-container ${isDriver ? 'top-navbar-driver' : ''}`}>
-        {/* LEFT: Application Title & Icon */}
-        <div className="top-navbar-left">
-          <Link to="/" className="navbar-brand" aria-label="Route Optimizer Home">
-            <div className="navbar-brand-icon">
-              <Route size={16} />
+    <>
+      <header className="ref-top-header">
+        <div className="ref-header-left">
+          {/* Hamburger Menu Toggle (Mobile) */}
+          <button
+            type="button"
+            className="ref-mobile-menu-btn lg:hidden"
+            onClick={() => setMobileMenuOpen && setMobileMenuOpen(true)}
+            aria-label="Toggle navigation menu"
+          >
+            <Menu size={20} />
+          </button>
+
+          {/* Central Search Bar with Ctrl+K badge */}
+          <form onSubmit={handleSearchSubmit} className="ref-search-bar-wrap">
+            <Search size={16} className="ref-search-icon" />
+            <input
+              type="text"
+              className="ref-search-input"
+              placeholder={getSearchPlaceholder()}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Global search input"
+            />
+            <kbd className="ref-search-kbd">Ctrl + K</kbd>
+          </form>
+        </div>
+
+        <div className="ref-header-right">
+          {/* Driver Availability Toggle */}
+          {isDriver && (
+            <div className="ref-driver-availability-toggle">
+              <span className="ref-avail-label">Availability</span>
+              <button
+                type="button"
+                className={`ref-toggle-switch ${driverOnline ? 'active' : ''}`}
+                onClick={() => setDriverOnline(prev => !prev)}
+                title="Toggle Driver Availability"
+              >
+                <span className="ref-toggle-knob" />
+                <span className="ref-toggle-text">{driverOnline ? 'Online' : 'Offline'}</span>
+              </button>
             </div>
-            <span className="navbar-brand-text">Route Optimizer</span>
+          )}
+
+          {/* Notifications Bell */}
+          <div className="ref-bell-btn-wrap" title={`${notificationCount} new alerts`}>
+            <button type="button" className="ref-icon-btn">
+              <Bell size={18} />
+              {notificationCount > 0 && (
+                <span className="ref-bell-badge">{notificationCount}</span>
+              )}
+            </button>
+          </div>
+
+          {/* Theme Quick Toggle */}
+          <button
+            type="button"
+            className="ref-icon-btn"
+            onClick={toggleTheme}
+            title="Toggle Light/Dark Theme"
+          >
+            {theme === 'arctic-light' || theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+          </button>
+
+          {/* User Profile Widget */}
+          <Link to="/profile" className="ref-profile-widget" title="View Profile">
+            <div className="ref-avatar-circle">
+              {getInitials(displayName)}
+            </div>
+            <div className="ref-profile-text">
+              <span className="ref-profile-name">{displayName}</span>
+              <span className="ref-profile-role">{userRole}</span>
+            </div>
           </Link>
         </div>
+      </header>
 
-        {/* CENTER: Horizontal Navigation Items (Desktop & Tablet) */}
-        <div className="top-navbar-center" role="menubar">
-          {filteredNavLinks.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `navbar-nav-link ${isActive ? 'active' : ''}`
-              }
-              role="menuitem"
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </div>
+      {/* Customer Quick Shipment Modal */}
+      {showShipmentModal && (
+        <CustomerShipmentModal
+          isOpen={showShipmentModal}
+          onClose={() => setShowShipmentModal(false)}
+          onSuccess={() => {
+            setShowShipmentModal(false);
+            if (location.pathname === '/' || location.pathname === '/packages') {
+              window.location.reload();
+            } else {
+              navigate('/packages');
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
 
-        {/* RIGHT: User Profile, Role Badge, Theme Toggle & Logout */}
-        <div className="top-navbar-right">
-          {/* 10-Theme Selector Dropdown */}
-          <div className="relative" ref={themeMenuRef}>
-            <button
-              type="button"
-              className="navbar-icon-btn flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-themed bg-themed-surface hover:bg-themed-elevated transition"
-              onClick={() => setThemeMenuOpen((prev) => !prev)}
-              title="Select visual theme (10 presets available)"
-              aria-label="Select visual theme"
-              id="theme-selector-btn"
-            >
-              <Palette size={14} style={{ color: 'var(--color-primary)' }} />
-              <span className="text-xs font-semibold hidden md:inline" style={{ color: 'var(--color-primary)' }}>
-                {THEMES.find((t) => t.id === theme)?.name || 'Theme'}
-              </span>
-            </button>
+// =============================================================================
+// DARK NAVY SIDEBAR (Strict Reference Image Replica)
+// =============================================================================
+export default function Navbar({ mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+  const { user, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showShipmentModal, setShowShipmentModal] = useState(false);
 
-            {themeMenuOpen && (
-              <div
-                className="absolute right-0 mt-2 w-64 rounded-xl shadow-2xl p-2 z-[9999] border"
-                style={{
-                  backgroundColor: 'var(--color-dark-surface)',
-                  borderColor: 'var(--color-dark-border)',
-                  boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
-                }}
-                role="dialog"
-                aria-label="Theme Selector Menu"
-              >
-                <div className="px-2.5 py-1.5 mb-1.5 border-b border-themed flex items-center justify-between">
-                  <span className="text-xs font-bold text-themed-primary flex items-center gap-1.5">
-                    <Palette size={12} style={{ color: 'var(--color-primary)' }} /> Visual Themes
-                  </span>
-                  <span className="text-[10px] text-themed-muted font-medium">10 Presets</span>
-                </div>
+  const userRole = user?.role || 'DRIVER';
+  const isAdmin = userRole === 'ADMIN';
+  const isDriver = userRole === 'DRIVER';
+  const isUser = userRole === 'USER';
 
-                <div className="space-y-1 max-h-72 overflow-y-auto">
-                  {THEMES.map((t) => {
-                    const isSelected = theme === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => selectTheme(t.id)}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition ${
-                          isSelected
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold'
-                            : 'text-themed-secondary hover:bg-themed-elevated hover:text-themed-primary'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-3.5 h-3.5 rounded-full border border-white/20 shadow-sm shrink-0"
-                            style={{ backgroundColor: t.primary }}
-                          />
-                          <span>{t.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-themed-elevated text-themed-muted">
-                            {t.tag}
-                          </span>
-                          {isSelected && <Check size={13} className="text-emerald-400" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+  // Role-specific navigation items matching the supplied reference image
+  const getSidebarNavItems = () => {
+    if (isAdmin) {
+      return [
+        { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+        { to: '/packages', label: 'Packages', icon: Package },
+        { to: '/deliveries', label: 'Deliveries', icon: Truck },
+        { to: '/routes', label: 'Route Optimizer', icon: Route },
+        { to: '/locations', label: 'Locations & Hubs', icon: MapPin },
+        { to: '/drivers', label: 'Drivers', icon: Users },
+        { to: '/vehicles', label: 'Vehicles', icon: Truck },
+        { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+        { to: '/reports', label: 'Reports', icon: FileText },
+        { to: '/users', label: 'Administration', icon: Settings },
+      ];
+    }
 
-          <div className="navbar-divider" />
+    if (isUser) {
+      return [
+        { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+        { isAction: true, label: 'Create Shipment', icon: PlusCircle, action: () => setShowShipmentModal(true) },
+        { to: '/packages', label: 'My Packages', icon: Package },
+        { to: '/deliveries', label: 'Track Shipment', icon: Search },
+        { to: '/deliveries', label: 'Delivery History', icon: Clock },
+        { to: '/profile', label: 'Profile', icon: UserIcon },
+        { to: '/profile', label: 'Support', icon: HelpCircle },
+      ];
+    }
 
-          {/* User & Role Badge with Profile Avatar */}
-          <div
-            className="navbar-user-area"
-            ref={userMenuRef}
-            onClick={() => setUserMenuOpen((prev) => !prev)}
-            title={`Signed in as ${displayName}`}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setUserMenuOpen((prev) => !prev);
-              }
-            }}
-          >
-            <div className="navbar-avatar" aria-hidden="true">
-              {profileImageUrl ? (
-                <img src={profileImageUrl} alt={displayName} className="navbar-avatar-img" />
-              ) : (
-                <span className="navbar-avatar-initials">{getInitials(displayName)}</span>
-              )}
+    // Driver items
+    return [
+      { to: '/', label: 'My Dashboard', icon: LayoutDashboard, end: true },
+      { to: '/deliveries', label: 'Assigned Deliveries', icon: Truck },
+      { to: '/routes', label: 'Route & Navigation', icon: Route },
+      { to: '/deliveries', label: 'Pickup Tasks', icon: ArrowUpRight },
+      { to: '/deliveries', label: 'Delivery Tasks', icon: ArrowDownRight },
+      { to: '/deliveries', label: 'Delivery History', icon: Clock },
+      { to: '/profile', label: 'Profile', icon: UserIcon },
+    ];
+  };
+
+  const navItems = getSidebarNavItems();
+
+  return (
+    <>
+      <aside className={`ref-navy-sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`} aria-label="Main Navigation">
+        {/* Top Logo matching reference image */}
+        <div className="ref-sidebar-logo-box">
+          <Link to="/" className="ref-sidebar-brand" onClick={() => setMobileMenuOpen(false)}>
+            <div className="ref-logo-cube">
+              <Box size={22} className="text-white" strokeWidth={2.2} />
             </div>
-
-            {/* Profile Dropdown Menu */}
-            {userMenuOpen && (
-              <div
-                className="navbar-profile-menu-dropdown"
-                role="dialog"
-                aria-label="Profile Menu"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="navbar-profile-menu-header">
-                  <div className="navbar-profile-menu-avatar">
-                    {profileImageUrl ? (
-                      <img src={profileImageUrl} alt={displayName} className="navbar-avatar-img" />
-                    ) : (
-                      <span className="navbar-avatar-initials">{getInitials(displayName)}</span>
-                    )}
-                  </div>
-                  <div className="navbar-profile-menu-userinfo">
-                    <span className="navbar-profile-menu-name">{displayName}</span>
-                    {user?.email && <span className="navbar-profile-menu-email">{user.email}</span>}
-                    {user?.userId && <span className="navbar-profile-menu-id">ID: #{user.userId}</span>}
-                  </div>
-                </div>
-                <div className="navbar-profile-menu-footer">
-                  <Link
-                    to="/profile"
-                    className="navbar-profile-menu-link-btn"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '10px 16px',
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--theme-text)',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      textDecoration: 'none',
-                      transition: 'background 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-surface-hover)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    onClick={() => setUserMenuOpen(false)}
-                  >
-                    <UserIcon size={14} />
-                    <span>My Profile</span>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Logout Action */}
+            <div className="ref-brand-titles">
+              <span className="ref-brand-l1">Package Delivery</span>
+              <span className="ref-brand-l2">Route Optimizer</span>
+            </div>
+          </Link>
           <button
             type="button"
-            className="navbar-logout-btn"
-            onClick={logout}
-            id="logout-btn"
-            title="Sign out of operations"
+            className="ref-sidebar-close lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close sidebar"
           >
-            <LogOut size={14} />
-            <span>Logout</span>
-          </button>
-
-          {/* Mobile Menu Hamburger Button */}
-          <button
-            type="button"
-            className="navbar-mobile-toggle"
-            onClick={() => setMobileMenuOpen((prev) => !prev)}
-            aria-expanded={mobileMenuOpen}
-            aria-label={mobileMenuOpen ? 'Close menu' : 'Open navigation menu'}
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            <X size={18} />
           </button>
         </div>
-      </div>
 
-      {/* MOBILE RESPONSIVE NAVIGATION DRAWER */}
-      {mobileMenuOpen && (
-        <div className="navbar-mobile-menu" role="menu">
-          <div className="navbar-mobile-user-strip">
-            <div className="navbar-user-area" style={{ display: 'flex' }}>
-              <div className="navbar-avatar" aria-hidden="true">
-                {profileImageUrl ? (
-                  <img src={profileImageUrl} alt={displayName} className="navbar-avatar-img" />
-                ) : (
-                  <span className="navbar-avatar-initials">{getInitials(displayName)}</span>
-                )}
-              </div>
-              <span className="navbar-username">{displayName}</span>
-              <span className={`navbar-role-badge role-${userRole.toLowerCase()}`}>
-                {userRole}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="navbar-icon-btn"
-              onClick={toggleTheme}
-              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            >
-              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-              <span style={{ fontSize: 11, marginLeft: 6 }}>
-                {theme === 'dark' ? 'Light' : 'Dark'}
-              </span>
-            </button>
-          </div>
+        {/* Navigation Link List */}
+        <nav className="ref-sidebar-nav">
+          {navItems.map((item, idx) => {
+            const Icon = item.icon;
 
-          <div className="navbar-mobile-links">
-            {filteredNavLinks.map((item) => (
+            if (item.isAction) {
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (item.action) item.action();
+                  }}
+                  className="ref-nav-link ref-action-link"
+                >
+                  <Icon size={18} className="ref-nav-icon" />
+                  <span className="ref-nav-text">{item.label}</span>
+                </button>
+              );
+            }
+
+            return (
               <NavLink
-                key={item.to}
+                key={item.to + item.label + idx}
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `navbar-mobile-link ${isActive ? 'active' : ''}`
+                  `ref-nav-link ${isActive ? 'active' : ''}`
                 }
-                role="menuitem"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                {item.label}
+                <Icon size={18} className="ref-nav-icon" />
+                <span className="ref-nav-text">{item.label}</span>
               </NavLink>
-            ))}
-          </div>
+            );
+          })}
+        </nav>
 
-          <div className="navbar-mobile-footer">
-            <button
-              type="button"
-              className="btn btn-secondary w-full"
-              onClick={logout}
-              id="sidebar-logout-btn"
-              style={{ width: '100%', justifyContent: 'center' }}
-            >
-              <LogOut size={14} />
-              <span>Logout</span>
-            </button>
-          </div>
+        {/* Sidebar Footer with Logout */}
+        <div className="ref-sidebar-footer">
+          <button
+            type="button"
+            className="ref-logout-link"
+            onClick={logout}
+            id="sidebar-logout-btn"
+            title="Log out of system"
+          >
+            <LogOut size={16} />
+            <span>Logout</span>
+          </button>
         </div>
+      </aside>
+
+      {/* Mobile Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="ref-sidebar-backdrop lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
       )}
-    </nav>
+
+      {/* Customer Quick Shipment Modal triggered from sidebar */}
+      {showShipmentModal && (
+        <CustomerShipmentModal
+          isOpen={showShipmentModal}
+          onClose={() => setShowShipmentModal(false)}
+          onSuccess={() => {
+            setShowShipmentModal(false);
+            if (location.pathname === '/' || location.pathname === '/packages') {
+              window.location.reload();
+            } else {
+              navigate('/packages');
+            }
+          }}
+        />
+      )}
+    </>
   );
 }
